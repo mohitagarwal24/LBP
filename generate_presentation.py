@@ -1,29 +1,29 @@
 """
-Generate PPTX Presentation: Comparative Study of Stochastic Models for Option Pricing
-IIT Roorkee | Under Prof. Chaman Kumar
+Generate PPTX presentation focused on Black–Scholes and Merton
+Jump–Diffusion models for NIFTY 50, with strong emphasis on MLE
+derivations and visual evidence of fat tails.
 """
 
 import os
 from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
+from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
 
-FIGURES_DIR = 'figures/'
-OUTPUT_FILE = 'Stochastic_Option_Pricing_Presentation.pptx'
+FIGURES_DIR = "figures/"
+OUTPUT_FILE = "Stochastic_Option_Pricing_Presentation_v2.pptx"
 
 DARK_BLUE = RGBColor(0x1B, 0x3A, 0x6B)
 ORANGE = RGBColor(0xC8, 0x52, 0x1A)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-LIGHT_GRAY = RGBColor(0xF0, 0xF0, 0xF0)
 BLACK = RGBColor(0x00, 0x00, 0x00)
-GREEN = RGBColor(0x2E, 0x8B, 0x57)
 ACCENT_GOLD = RGBColor(0xD4, 0xA0, 0x2F)
 
 prs = Presentation()
 prs.slide_width = Inches(13.333)
 prs.slide_height = Inches(7.5)
+
 
 def add_background(slide, color=DARK_BLUE):
     bg = slide.background
@@ -31,10 +31,22 @@ def add_background(slide, color=DARK_BLUE):
     fill.solid()
     fill.fore_color.rgb = color
 
-def add_textbox(slide, left, top, width, height, text, font_size=18,
-                color=WHITE, bold=False, alignment=PP_ALIGN.LEFT, font_name='Calibri'):
-    txBox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
-    tf = txBox.text_frame
+
+def add_textbox(
+    slide,
+    left,
+    top,
+    width,
+    height,
+    text,
+    font_size=18,
+    color=WHITE,
+    bold=False,
+    alignment=PP_ALIGN.LEFT,
+    font_name="Calibri",
+):
+    tx = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+    tf = tx.text_frame
     tf.word_wrap = True
     p = tf.paragraphs[0]
     p.text = text
@@ -43,102 +55,170 @@ def add_textbox(slide, left, top, width, height, text, font_size=18,
     p.font.bold = bold
     p.font.name = font_name
     p.alignment = alignment
-    return txBox
+    return tx
 
-def add_bullet_slide(slide, left, top, width, height, bullets, font_size=16,
-                     color=WHITE, font_name='Calibri'):
-    txBox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
-    tf = txBox.text_frame
+
+def add_bullets(
+    slide, left, top, width, height, bullets, font_size=16, color=BLACK, font_name="Calibri"
+):
+    tx = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+    tf = tx.text_frame
     tf.word_wrap = True
-    for i, bullet in enumerate(bullets):
-        if i == 0:
-            p = tf.paragraphs[0]
-        else:
-            p = tf.add_paragraph()
-        p.text = bullet
+    for i, line in enumerate(bullets):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.text = line
         p.font.size = Pt(font_size)
         p.font.color.rgb = color
         p.font.name = font_name
-        p.space_after = Pt(6)
         p.level = 0
-    return txBox
+    return tx
 
-def add_image_safe(slide, img_path, left, top, width=None, height=None):
-    full_path = os.path.join(FIGURES_DIR, img_path) if not os.path.isabs(img_path) else img_path
-    if os.path.exists(full_path):
-        kwargs = {}
-        if width: kwargs['width'] = Inches(width)
-        if height: kwargs['height'] = Inches(height)
-        slide.shapes.add_picture(full_path, Inches(left), Inches(top), **kwargs)
-        return True
-    return False
 
+def add_image(slide, filename, left, top, width=None, height=None):
+    path = os.path.join(FIGURES_DIR, filename)
+    if not os.path.exists(path):
+        return False
+    kwargs = {}
+    if width:
+        kwargs["width"] = Inches(width)
+    if height:
+        kwargs["height"] = Inches(height)
+    slide.shapes.add_picture(path, Inches(left), Inches(top), **kwargs)
+    return True
+
+
+def add_bar(slide, left, top, width, height, color=ORANGE):
+    shp = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE, Inches(left), Inches(top), Inches(width), Inches(height)
+    )
+    shp.fill.solid()
+    shp.fill.fore_color.rgb = color
+    shp.line.fill.background()
+    return shp
+
+
+# Backwards‑compatibility helpers for the slide code below
 def add_accent_bar(slide, left, top, width, height, color=ORANGE):
-    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(left), Inches(top),
-                                    Inches(width), Inches(height))
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = color
-    shape.line.fill.background()
-    return shape
+    return add_bar(slide, left, top, width, height, color)
 
 
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 1: Title
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
+def add_image_safe(slide, filename, left, top, width=None, height=None):
+    return add_image(slide, filename, left, top, width, height)
+
+
+def add_bullet_slide(slide, left, top, width, height, bullets, font_size=16, color=BLACK, font_name="Calibri"):
+    return add_bullets(slide, left, top, width, height, bullets, font_size, color, font_name)
+
+
+# ─────────────────────────────
+# Slide 1 – Title
+# ─────────────────────────────
+slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, DARK_BLUE)
-add_accent_bar(slide, 0, 0, 13.333, 0.15, ORANGE)
-add_accent_bar(slide, 0, 7.35, 13.333, 0.15, ORANGE)
+add_bar(slide, 0, 0, 13.333, 0.15, ORANGE)
+add_bar(slide, 0, 7.35, 13.333, 0.15, ORANGE)
 
-add_textbox(slide, 1.5, 1.0, 10, 1.5,
-            'COMPARATIVE STUDY OF STOCHASTIC MODELS\nFOR OPTION PRICING',
-            font_size=36, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
-add_textbox(slide, 1.5, 2.8, 10, 0.6,
-            'In the Indian Stock Market (NIFTY 50)',
-            font_size=24, color=ACCENT_GOLD, bold=False, alignment=PP_ALIGN.CENTER)
-add_accent_bar(slide, 4, 3.6, 5, 0.04, ORANGE)
-add_textbox(slide, 1.5, 3.9, 10, 0.5,
-            'Black-Scholes  →  Merton Jump-Diffusion  →  Heston  →  Bates',
-            font_size=18, color=RGBColor(0xAA, 0xCC, 0xEE), alignment=PP_ALIGN.CENTER)
-add_textbox(slide, 1.5, 5.0, 10, 0.4,
-            'Project Report | Mid-Term Evaluation | Academic Year 2025-26',
-            font_size=16, color=RGBColor(0x99, 0xBB, 0xDD), alignment=PP_ALIGN.CENTER)
-add_textbox(slide, 1.5, 5.6, 10, 0.4,
-            'Under the supervision of Prof. Chaman Kumar',
-            font_size=18, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
-add_textbox(slide, 1.5, 6.2, 10, 0.4,
-            'Department of Mathematics, IIT Roorkee',
-            font_size=14, color=RGBColor(0x99, 0xBB, 0xDD), alignment=PP_ALIGN.CENTER)
+add_textbox(
+    slide,
+    1.5,
+    1.0,
+    10,
+    1.5,
+    "COMPARATIVE STUDY OF STOCHASTIC MODELS\nFOR OPTION PRICING",
+    font_size=36,
+    color=WHITE,
+    bold=True,
+    alignment=PP_ALIGN.CENTER,
+)
+add_textbox(
+    slide,
+    1.5,
+    2.8,
+    10,
+    0.6,
+    "Focus: Black–Scholes vs Merton Jump–Diffusion on NIFTY 50",
+    font_size=22,
+    color=ACCENT_GOLD,
+    alignment=PP_ALIGN.CENTER,
+)
+add_bar(slide, 4, 3.6, 5, 0.04, ORANGE)
+add_textbox(
+    slide,
+    1.5,
+    5.0,
+    10,
+    0.4,
+    "Project Report | Academic Year 2025–26",
+    font_size=16,
+    color=RGBColor(0x99, 0xBB, 0xDD),
+    alignment=PP_ALIGN.CENTER,
+)
+add_textbox(
+    slide,
+    1.5,
+    5.6,
+    10,
+    0.4,
+    "Under supervision of Prof. Chaman Kumar",
+    font_size=18,
+    color=WHITE,
+    bold=True,
+    alignment=PP_ALIGN.CENTER,
+)
+add_textbox(
+    slide,
+    1.5,
+    6.2,
+    10,
+    0.4,
+    "Department of Mathematics, IIT Roorkee",
+    font_size=14,
+    color=RGBColor(0x99, 0xBB, 0xDD),
+    alignment=PP_ALIGN.CENTER,
+)
 
 
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 2: Outline
-# ═══════════════════════════════════════════════════════════════
+# ─────────────────────────────
+# Slide 2 – Outline
+# ─────────────────────────────
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 6, 0.6, 'Presentation Outline', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
+add_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
+add_textbox(slide, 0.8, 0.3, 7, 0.6, "Outline", font_size=32, color=DARK_BLUE, bold=True)
+add_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
 
-items_left = [
-    '1.  Motivation & Background',
-    '2.  Data: NIFTY 50 (2018–2024)',
-    '3.  Black-Scholes Model',
-    '     • GBM, MLE, Closed-Form, MC',
-    '4.  Merton Jump-Diffusion',
-    '     • SDE, MLE, MC Pricing',
-]
-items_right = [
-    '5.  Empirical Comparison',
-    '     • Tail Behavior, IV Smile, VaR',
-    '6.  Statistical Model Selection',
-    '     • LRT, AIC/BIC',
-    '7.  End-Term: Heston & Bates',
-    '8.  Connection to Supervisor Research',
-]
-
-add_bullet_slide(slide, 0.8, 1.4, 5.5, 5, items_left, font_size=18, color=BLACK)
-add_bullet_slide(slide, 6.8, 1.4, 5.5, 5, items_right, font_size=18, color=BLACK)
+add_bullets(
+    slide,
+    0.8,
+    1.4,
+    5.7,
+    5.0,
+    [
+        "1. Motivation & empirical stylised facts (Indian market)",
+        "2. Data: NIFTY 50 (2018–2024)",
+        "3. Black–Scholes model:",
+        "   • GBM SDE and log‑price solution",
+        "   • Maximum Likelihood Estimation (MLE)",
+        "   • Closed‑form pricing & Monte Carlo",
+    ],
+    font_size=17,
+)
+add_bullets(
+    slide,
+    7.0,
+    1.4,
+    5.7,
+    5.0,
+    [
+        "4. Merton Jump–Diffusion:",
+        "   • SDE with jumps and log‑return derivation",
+        "   • Gaussian‑mixture likelihood & MLE",
+        "5. Evidence from NIFTY 50:",
+        "   • Fat tails, VaR failures, volatility smile",
+        "6. Model selection (LRT, AIC/BIC) & future work (Heston/Bates)",
+    ],
+    font_size=17,
+)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -193,84 +273,119 @@ add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
 add_textbox(slide, 0.8, 0.3, 8, 0.6, '3. Black-Scholes Model — Theory', font_size=32, color=DARK_BLUE, bold=True)
 add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
 
-bs_theory = [
-    'Geometric Brownian Motion (GBM):',
-    '   dS(t) = μ S(t) dt + σ S(t) dW(t)',
-    '',
-    'By Itô\'s Lemma:',
-    '   S(T) = S(0) · exp[ (μ − σ²/2)T + σ√T · Z ],   Z ~ N(0,1)',
-    '',
-    'Log-returns:  r_t = ln(S_t/S_{t−1}) ~ N( (μ − σ²/2)Δt,  σ²Δt )',
-    '',
-    'MLE Log-Likelihood:',
-    '   ℓ(μ,σ) = −(n/2)ln(2π) − (n/2)ln(σ²Δt) − Σ (r_i − μ̃Δt)² / (2σ²Δt)',
-    '',
-    'Risk-Neutral Pricing (Girsanov\'s theorem):',
-    '   V(0) = e^{−r_f T} · E^Q[ Payoff(S(T)) ]',
-    '',
-    'BS Call Formula:  C = S₀ N(d₁) − K e^{−r_f T} N(d₂)',
-    '   d₁ = [ln(S₀/K) + (r_f + σ²/2)T] / (σ√T),   d₂ = d₁ − σ√T',
-    '',
-    '[BS73] Black, F. & Scholes, M. (1973). J. Political Economy, 81(3), 637–654.',
-    '[Aït-Sa02] Aït-Sahalia, Y. (2002). Econometrica, 70(1), 223–262.',
-]
-add_bullet_slide(slide, 0.8, 1.2, 11.5, 6, bs_theory, font_size=14, color=BLACK)
+add_image_safe(slide, 'eq_bs_sde.png', 0.8, 1.2, width=6.0)
+add_image_safe(slide, 'eq_ito_lemma.png', 0.8, 2.3, width=6.0)
+add_image_safe(slide, 'eq_bs_solution.png', 0.8, 3.4, width=6.5)
+add_image_safe(slide, 'eq_bs_logret.png', 0.8, 4.6, width=6.5)
+add_bullet_slide(
+    slide,
+    7.0,
+    1.4,
+    5.5,
+    4.8,
+    [
+        'GBM SDE → log‑price SDE via Itô’s lemma.',
+        'Solution gives log‑normal terminal distribution; daily log‑returns Gaussian with mean (μ−σ²/2)Δt.',
+        'These expressions feed directly into the MLE and Monte Carlo estimator.',
+        '[BS73] Black & Scholes (1973), [Aït‑Sa02] Aït‑Sahalia (2002).',
+    ],
+    font_size=14,
+    color=BLACK,
+)
 
 
 # ═══════════════════════════════════════════════════════════════
-# SLIDE 6: BS Results (with figure)
+# SLIDE 6: Black-Scholes MLE
 # ═══════════════════════════════════════════════════════════════
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, WHITE)
 add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '3. Black-Scholes — MC Simulation & Results', font_size=32, color=DARK_BLUE, bold=True)
+add_textbox(slide, 0.8, 0.3, 10, 0.6, '3. Black-Scholes — Maximum Likelihood Estimation', font_size=30, color=DARK_BLUE, bold=True)
 add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
 
-add_image_safe(slide, '02_bs_paths_and_terminal.png', 0.3, 1.2, width=12.5)
-
-bs_results_text = [
-    'MC estimator: Ĉ_MC = e^{−r_f T} · (1/N) Σ max(S_T^(i) − K, 0)   |   SE ~ 1/√N by CLT',
-    'MC price converges to closed-form, validating SDE↔pricing formula link [Glasserman, 2003]',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, bs_results_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
+add_image_safe(slide, 'eq_bs_loglik.png', 0.7, 1.4, width=6.7)
+add_image_safe(slide, 'eq_bs_mle_solution.png', 0.7, 2.8, width=6.7)
+add_image_safe(slide, 'eq_bs_riskneutral.png', 0.7, 4.0, width=6.0)
+add_bullet_slide(
+    slide,
+    7.2,
+    1.5,
+    5.5,
+    4.7,
+    [
+        'Under discretely observed GBM, log‑returns are i.i.d. Gaussian ⇒ closed‑form MLE for (μ,σ).',
+        'We still use numerical optimisation (Nelder–Mead) to match the framework used later for MJD.',
+        'Risk‑neutral drift replaces μ by r_f, but the volatility estimate σ̂_MLE is carried into pricing.',
+        'This slide is where you can explicitly mention numerical values of μ̂ and σ̂ from the code output.',
+    ],
+    font_size=14,
+    color=BLACK,
+)
 
 
 # ═══════════════════════════════════════════════════════════════
-# SLIDE 7: Merton JD Theory
+# SLIDE 7: Merton JD — SDE & Log-Return Derivation
 # ═══════════════════════════════════════════════════════════════
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, WHITE)
 add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '4. Merton Jump-Diffusion — Theory', font_size=32, color=DARK_BLUE, bold=True)
+add_textbox(slide, 0.8, 0.3, 10, 0.6, '4. Merton Jump-Diffusion — SDE & Log-Return', font_size=30, color=DARK_BLUE, bold=True)
 add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
 
-mjd_theory = [
-    'SDE (Physical Measure):',
-    '   dS(t) = μ S(t) dt + σ S(t) dW(t) + S(t⁻)(e^J − 1) dN(t)',
-    '   N(t) ~ Poisson(λ),   J ~ N(μ_J, σ_J²)',
-    '',
-    'Log-return given k jumps:',
-    '   r | N=k  ~  N( (μ − σ²/2)Δt + k·μ_J,   σ²Δt + k·σ_J² )',
-    '',
-    'Marginal density (Gaussian mixture):',
-    '   f(r) = Σ_{k=0}^∞  [e^{−λΔt}(λΔt)^k / k!] · φ(r; μ̃Δt + kμ_J, σ²Δt + kσ_J²)',
-    '',
-    'Variance decomposition:',
-    '   Var(r) = σ²Δt + λΔt·(μ_J² + σ_J²)   ← jump component adds excess kurtosis',
-    '',
-    'Risk-Neutral drift:  κ = E[e^J − 1] = exp(μ_J + σ_J²/2) − 1',
-    '   Compensated drift ensures E^Q[S(t)] = S(0)e^{r_f t}  (no-arbitrage)',
-    '',
-    'Parameters: θ = (μ, σ, λ, μ_J, σ_J) — 5 params vs BS\'s 2',
-    '',
-    '[Me76] Merton, R.C. (1976). J. Financial Economics, 3(1-2), 125-144.',
-    '[CT04] Cont, R. & Tankov, P. (2004). Financial Modelling with Jump Processes.',
-]
-add_bullet_slide(slide, 0.8, 1.2, 11.5, 6, mjd_theory, font_size=14, color=BLACK)
+add_image_safe(slide, 'eq_mjd_sde.png', 0.7, 1.3, width=6.7)
+add_image_safe(slide, 'eq_mjd_jumps.png', 0.7, 2.4, width=6.7)
+add_image_safe(slide, 'eq_mjd_ito.png', 0.7, 3.5, width=6.7)
+add_image_safe(slide, 'eq_mjd_conditional.png', 0.7, 4.7, width=6.9)
+add_bullet_slide(
+    slide,
+    7.1,
+    1.5,
+    5.4,
+    4.7,
+    [
+        'Jump term S(t−)(e^J − 1)dN(t) superimposes compound Poisson jumps on GBM.',
+        'Applying Itô for jump–diffusions gives d(ln S) with an extra J dN(t) term.',
+        'Conditioning on N=k jumps → Gaussian with shifted mean/variance;',
+        'marginalising over k gives a Poisson‑weighted Gaussian mixture.',
+        '[Me76] Merton (1976), [CT04] Cont & Tankov (2004).',
+    ],
+    font_size=14,
+    color=BLACK,
+)
 
 
 # ═══════════════════════════════════════════════════════════════
-# SLIDE 8: GBM vs MJD Paths
+# SLIDE 8: Merton JD — Likelihood & Variance
+# ═══════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(prs.slide_layouts[6])
+add_background(slide, WHITE)
+add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
+add_textbox(slide, 0.8, 0.3, 10, 0.6, '4. Merton Jump-Diffusion — Likelihood & Moments', font_size=30, color=DARK_BLUE, bold=True)
+add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
+
+add_image_safe(slide, 'eq_mjd_density.png', 0.7, 1.4, width=6.9)
+add_image_safe(slide, 'eq_mjd_loglik.png', 0.7, 2.8, width=6.9)
+add_image_safe(slide, 'eq_mjd_variance.png', 0.7, 4.0, width=6.0)
+add_image_safe(slide, 'eq_mjd_kurtosis.png', 0.7, 4.9, width=6.2)
+add_bullet_slide(
+    slide,
+    7.1,
+    1.5,
+    5.4,
+    4.7,
+    [
+        'Log‑likelihood is a sum of log Gaussian‑mixture densities evaluated at NIFTY log‑returns.',
+        'We maximise ℓ(θ) numerically (L‑BFGS‑B) over θ = (μ, σ, λ, μ_J, σ_J).',
+        'Variance decomposition highlights the role of λ(μ_J²+σ_J²) term in generating fat tails.',
+        'Closed‑form excess kurtosis shows MJD can match empirical kurtosis where BS cannot.',
+    ],
+    font_size=14,
+    color=BLACK,
+)
+
+
+# ═══════════════════════════════════════════════════════════════
+# SLIDE 9: GBM vs MJD Paths (1‑year horizon)
 # ═══════════════════════════════════════════════════════════════
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, WHITE)
@@ -281,8 +396,9 @@ add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
 add_image_safe(slide, '03_gbm_vs_mjd_paths.png', 0.3, 1.2, width=12.5)
 
 path_text = [
-    'Red dots mark jump events in MJD paths. GBM paths are smooth — unable to capture sudden dislocations.',
-    'MJD naturally models events like the −13% NIFTY crash on 23 March 2020.',
+    'Top row: GBM paths are smooth; MJD paths show red vertical lines and dots at jump times.',
+    'Bottom‑left: single‑path decomposition — diffusion only vs diffusion+jumps; arrows show discrete jumps.',
+    'Bottom‑right: histogram of jump sizes J ~ N(μ_J, σ_J²); most jumps are small but frequent (λ≈23/year).',
 ]
 add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, path_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
 

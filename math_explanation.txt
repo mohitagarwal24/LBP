@@ -1,0 +1,347 @@
+================================================================================
+  MATHEMATICAL EXPLANATION — STOCHASTIC OPTION PRICING PROJECT
+  (Black–Scholes vs Merton Jump–Diffusion on NIFTY 50)
+================================================================================
+
+This file gives a deeper, equation‑level explanation of the material that
+appears on each slide of the updated presentation
+`Stochastic_Option_Pricing_Presentation_v2.pptx`.  Use it as a reference
+while rehearsing; every important formula is here with short comments and
+pointers to the literature.
+
+I only cover Black–Scholes (BS) and Merton Jump–Diffusion (MJD), plus model
+selection. Heston/Bates are mentioned only in a brief future‑work note.
+
+Notation:
+  S(t)      – underlying index level (NIFTY 50)
+  μ, σ      – physical‑measure drift and volatility
+  r_f       – risk‑free rate (RBI repo, continuous compounding)
+  W(t)      – standard Brownian motion
+  N(t)      – Poisson process with intensity λ (jumps/year)
+  J         – log jump size,  J ~ N(μ_J, σ_J²)
+  Δt        – time step for daily data = 1/252
+  r_t       – log‑return ln(S_t / S_{t-1})
+
+--------------------------------------------------------------------------------
+1. Black–Scholes model
+--------------------------------------------------------------------------------
+
+1.1 GBM SDE and log‑price solution
+----------------------------------
+Assume under the physical measure P:
+
+  dS(t) = μ S(t) dt + σ S(t) dW(t)                                       (1)
+
+Apply Itô’s Lemma to f(S) = ln S:
+
+  df = f_S dS + ½ f_SS (dS)²
+     = (1/S) dS − ½ (1/S²) (σ² S² dt)                                   (2)
+
+Substituting dS from (1):
+
+  d(ln S(t)) = (μ − ½ σ²) dt + σ dW(t)                                  (3)
+
+Integrating from 0 to T:
+
+  ln S(T) = ln S(0) + (μ − ½ σ²) T + σ W(T)
+  ⇒ S(T)  = S(0) · exp{ (μ − ½ σ²)T + σ√T Z },   Z ~ N(0,1)             (4)
+
+This is what you show on the “BS theory” slide; it explains why S(T) is
+log‑normal and why log‑returns are Gaussian.
+
+
+1.2 Daily log‑returns
+---------------------
+Let Δt = 1/252 and consider S_t = S(tΔt). From (3),
+
+  r_t := ln(S_t / S_{t-1}) = (μ − ½ σ²)Δt + σ √Δt Z_t,   Z_t ~ N(0,1)   (5)
+
+Hence
+
+  r_t ~ N( (μ − ½ σ²)Δt, σ² Δt ).
+
+This is the likelihood model used for MLE on NIFTY log‑returns.
+
+
+1.3 MLE for (μ, σ)
+------------------
+Given returns r_1,…,r_n, independent N(m, v) with
+  m = (μ − ½ σ²)Δt,  v = σ² Δt,
+the log‑likelihood is
+
+  ℓ(μ, σ)
+    = − (n/2) ln(2π) − (n/2) ln v
+      − ∑_{i=1}^n (r_i − m)² / (2 v).                                   (6)
+
+A convenient reparameterisation is
+  μ̃ := μ − ½ σ² ⇒ m = μ̃ Δt.
+
+Taking derivatives and solving gives the closed‑form MLE:
+
+  σ̂² = (1/(n Δt)) ∑_{i=1}^n (r_i − r̄)²,
+  μ̂  = r̄ / Δt + ½ σ̂²,                                                 (7)
+
+where r̄ is the sample mean of returns.  In the code we *numerically*
+maximise ℓ(μ,σ) with Nelder–Mead instead of plugging in (7) directly, so
+that the optimisation framework can be reused for MJD.
+
+Key points to say orally:
+  • For GBM the MLE has a closed form, but we still use numerical
+    optimisation to keep the pipeline consistent.
+  • The estimate σ̂ from NIFTY data is about 17–18% annualised.
+
+Reference: Aït‑Sahalia (2002), Econometrica 70(1), for MLE of diffusions.
+
+
+1.4 Risk‑neutral measure and pricing
+------------------------------------
+Under the risk‑neutral measure Q, the drift becomes r_f:
+
+  dS(t) = r_f S(t) dt + σ S(t) dW^Q(t).                                 (8)
+
+Arbitrage‑free price of a derivative with payoff Φ(S(T)):
+
+  V(0) = e^{−r_f T} · E^Q[ Φ(S(T)) ].                                   (9)
+
+For a European call Φ(S(T)) = max(S(T) − K, 0), explicit integration
+gives Black–Scholes:
+
+  C = S_0 Φ(d₁) − K e^{−r_f T} Φ(d₂),                                   (10)
+  d₁ = [ln(S_0/K) + (r_f + ½ σ²)T] / (σ√T),
+  d₂ = d₁ − σ√T.
+
+You can always stress that the **same σ̂_MLE from historical data** is
+plugged into this formula.
+
+
+1.5 Monte Carlo estimator
+-------------------------
+Discretise (8) on n steps of size Δt = T/n:
+
+  ln S_{k+1} = ln S_k + (r_f − ½ σ²)Δt + σ√Δt Z_k.
+
+Simulate N paths, compute discounted payoffs:
+
+  Ĉ_MC = e^{−r_f T} (1/N) ∑ max(S_T^{(i)} − K, 0).                       (11)
+
+By the CLT the standard error shrinks ∝ 1/√N. The convergence plot in the
+slides shows Ĉ_MC → C_BS.
+
+Reference: Glasserman (2003), *Monte Carlo Methods in Financial
+Engineering*.
+
+--------------------------------------------------------------------------------
+2. Merton Jump–Diffusion model
+--------------------------------------------------------------------------------
+
+2.1 SDE and jump structure
+--------------------------
+Physical‑measure SDE:
+
+  dS(t) = μ S(t) dt + σ S(t) dW(t) + S(t−)(e^J − 1) dN(t),               (12)
+
+where:
+  • N(t) is a Poisson process with intensity λ (expected jumps per year),
+  • J is the log jump size,  J ~ N(μ_J, σ_J²), i.i.d. across jumps,
+  • W, N, and J’s are mutually independent.
+
+Intuition:
+  – GBM handles “small, continuous” moves;
+  – Poisson jumps handle sudden dislocations (crashes, gap moves).
+
+
+2.2 Log‑price dynamics via Itô for jump‑diffusions
+--------------------------------------------------
+For f(S) = ln S, Itô’s formula for jump‑diffusions gives
+
+  d(ln S(t))
+    = (μ − ½ σ²) dt + σ dW(t) + J dN(t).                                (13)
+
+Over a small time step Δt with N jumps equal to k, we integrate:
+
+  r := ln(S_{t+Δt} / S_t)
+      = (μ − ½ σ²)Δt + σ√Δt Z + ∑_{j=1}^k J_j.                          (14)
+
+Conditionally on N=k:
+  r | N=k ~ N( (μ − ½ σ²)Δt + k μ_J,   σ² Δt + k σ_J² ).               (15)
+
+
+2.3 Mixture likelihood and unconditional density
+------------------------------------------------
+Unconditional density for r is a Poisson‑weighted mixture of Gaussians:
+
+  f(r)
+    = ∑_{k=0}^∞ P(N=k) · φ(r; m_k, v_k)                                 (16)
+    = ∑_{k=0}^∞ e^{−λΔt}(λΔt)^k/k! · φ(r; m_k, v_k),
+
+where
+  m_k = (μ − ½ σ²)Δt + k μ_J,
+  v_k = σ² Δt + k σ_J²,
+  φ(·;m,v) is the N(m,v) density.
+
+In practice we truncate the sum at k = 15–20; for realistic λ this is
+enough since higher‑k terms have negligible weight.
+
+Given returns r₁,…,r_n, the log‑likelihood is
+
+  ℓ(θ) = ∑_{t=1}^n ln[ ∑_{k=0}^K e^{−λΔt}(λΔt)^k/k! · φ(r_t; m_k, v_k) ],
+                                                                     (17)
+with θ = (μ, σ, λ, μ_J, σ_J).  We maximise ℓ numerically with L‑BFGS‑B
+subject to natural constraints σ>0, λ≥0, σ_J>0.
+
+Key things to mention:
+  • The inner sum is the Gaussian mixture; we evaluate it for **every**
+    daily return in the sample ⇒ computationally heavy.
+  • The likelihood surface is higher‑dimensional, so we need a robust
+    optimiser with bounds (L‑BFGS‑B).
+
+The code uses a fully vectorised implementation to make this feasible.
+
+
+2.4 Moments and fat tails
+-------------------------
+Unconditional variance of r:
+
+  Var(r) = σ² Δt + λ Δt (μ_J² + σ_J²).                                  (18)
+
+The second term is the jump contribution: it is zero under BS (λ=0) and
+positive under MJD, giving extra variability and kurtosis.
+
+An analytical expression for excess kurtosis is
+
+  Kurt_excess(MJD)
+    = 3 λ (μ_J² + σ_J²)² / [ σ² + λ(μ_J² + σ_J²) ]².                    (19)
+
+This is the quantity you quote on the “kurtosis table” slide.  For NIFTY
+data, empirical excess kurtosis ≈ 22, BS gives 0 by construction, MJD
+can attain values in the same ball‑park depending on the estimated λ,
+μ_J, σ_J.
+
+
+2.5 Risk‑neutral drift and pricing
+----------------------------------
+Define
+  κ := E[e^J − 1] = exp(μ_J + ½ σ_J²) − 1.                              (20)
+
+Under Q, the compensated SDE is
+
+  dS(t) = r_f S(t) dt + σ S(t) dW^Q(t) + S(t−)(e^J − 1)(dN(t) − λ κ dt),
+                                                                     (21)
+so that E^Q[S(t)] = S(0) e^{r_f t}.  This is the “no‑arbitrage drift
+adjustment” line on the slide.
+
+In practice we use Monte Carlo under Q to price options, with the
+compensated drift μ_rn = r_f − ½ σ² − λ κ.
+
+
+2.6 Likelihood‑ratio test and information criteria
+--------------------------------------------------
+Black–Scholes is nested in MJD when λ → 0 and μ_J=0, σ_J=0.  Under the
+null H₀: “no jumps”, the likelihood‑ratio statistic
+
+  Λ = 2 [ ℓ_MJD − ℓ_BS ]  ~  χ²(3).                                     (22)
+
+The 3 degrees of freedom correspond to the additional parameters λ,
+μ_J, σ_J.  A very large Λ with p‑value ≈ 0 means the data strongly
+prefer MJD.
+
+On NIFTY data you obtained Λ ≈ 571 with p ≈ 0, which is **overwhelming**
+evidence in favour of jumps.
+
+Information criteria:
+
+  AIC = 2k − 2ℓ(θ̂),
+  BIC = k ln n − 2ℓ(θ̂),                                                (23)
+
+with k parameters and n observations.  Despite k_MJD = 5 vs k_BS = 2,
+the gain in log‑likelihood is so large that AIC and BIC are both lower
+for MJD, confirming that the extra parameters are justified.
+
+References:
+  – Merton (1976), J. Financial Economics 3(1–2).
+  – Aït‑Sahalia & Jacod (2007), Annals of Statistics 35(1).
+  – Cont & Tankov (2004), *Financial Modelling with Jump Processes*.
+
+--------------------------------------------------------------------------------
+3. Visual evidence and how to explain it
+--------------------------------------------------------------------------------
+
+3.1 Return distribution vs Normal (Figure 1 bottom‑left)
+--------------------------------------------------------
+Explain:
+  • Histogram of NIFTY daily log‑returns over 2018–2024.
+  • Red curve is the Gaussian N(m̂, ŝ²) using sample mean and s.d.
+  • Observed distribution is **more peaked** and has **heavier tails**
+    (mass beyond ±5% moves) than the normal.
+
+Connect to theory:
+  – Under BS, r_t is exactly Gaussian ⇒ kurtosis 0.
+  – Empirical kurtosis ≈ 22 ⇒ incompatible with BS assumptions.
+
+
+3.2 Left‑tail zoom (new bottom‑right of Figure 1)
+-------------------------------------------------
+Here you focus only on returns below −1%.  Emphasise that:
+  • The histogram bars in the left tail are much higher than the red
+    normal curve.
+  • Vertical lines at 1% and 0.5% empirical VaR show where BS assigns
+    almost zero probability.
+
+Link back to equations (18)–(19): adding the jump term λ(μ_J²+σ_J²)
+inflates tail probabilities precisely in this region.
+
+
+3.3 GBM vs MJD paths (Figure 3)
+-------------------------------
+Use the new four‑panel figure:
+  • Top‑left: GBM paths — smooth, continuous, no sudden jumps.
+  • Top‑right: MJD paths — red vertical lines and dots marking jump
+    times; shows **many small jumps** because λ̂≈23/year and σ_J≈2.6%.
+  • Bottom‑left: same random seed for diffusion with/without jumps;
+    arrows highlight the size and direction of each jump.
+  • Bottom‑right: histogram of jump sizes J in %.
+
+This helps answer the “I don’t see jumps” confusion — the estimated
+model has frequent but mostly modest jumps, not huge 30–40% gaps.
+
+
+3.4 Tail behaviour and QQ plots
+-------------------------------
+Figures 4 and 5 compare:
+  • BS simulated returns vs empirical vs MJD simulated returns.
+  • In QQ plots, tails of empirical distribution deviate strongly from
+    the 45° line under BS, but much less under MJD.
+
+Relate to excess kurtosis formula (19) and variance decomposition (18).
+
+
+3.5 VaR backtesting
+-------------------
+Explain that BS 1% VaR systematically underestimates losses — you see
+too many exceedances (red dots) and cumulative breaches outside the
+Kupiec 95% band.  The empirical VaR (proxy for MJD) tracks the target
+1% rate much better.
+
+
+--------------------------------------------------------------------------------
+4. Future work: Heston / Bates (for you only)
+--------------------------------------------------------------------------------
+
+In the PPT you now just have a short “Future work” bullet list.  If asked
+verbally, you can say:
+
+  • Heston will relax **constant volatility** by modelling v(t) as a CIR
+    process, d v = κ(θ − v) dt + ξ √v dW_v.
+  • Bates will add jumps on top of Heston, combining stochastic volatility
+    and jumps to match the full IV surface.
+  • Numerical simulation for Heston’s √v(t) term is delicate (can go
+    negative); this is where Prof. Kumar’s tamed Euler / Milstein schemes
+    are highly relevant for stable Monte Carlo pricing.
+
+You don’t need to derive Heston/Bates for this mid‑term; just mention
+them as natural next steps.
+
+================================================================================
+End of explanation.
+================================================================================
+

@@ -91,15 +91,20 @@ ax.legend()
 ax.grid(True, alpha=0.3)
 
 ax = axes[1, 1]
-rolling_vol = log_returns.rolling(21).std() * np.sqrt(252) * 100
-ax.plot(rolling_vol.index, rolling_vol.values, color='#8B4513', linewidth=0.8)
-ax.axhline(rolling_vol.mean(), color='green', linestyle='--', label=f'Mean: {rolling_vol.mean():.1f}%')
-for date_str in events:
-    ax.axvline(pd.Timestamp(date_str), color='red', alpha=0.4, linestyle='--', linewidth=0.8)
-ax.set_title('21-Day Rolling Realized Volatility (Annualized)')
-ax.set_ylabel('Volatility (%)')
-ax.legend()
+bins_left = np.linspace(-0.15, -0.01, 80)
+ax.hist(r[r < -0.01], bins=bins_left, density=True, color='#1B3A6B', alpha=0.6, label='Empirical NIFTY')
+x_left = np.linspace(-0.15, -0.01, 300)
+ax.plot(x_left, norm.pdf(x_left, r.mean(), r.std()), 'r-', linewidth=2.5, label='Normal (BS) fit')
+ax.axvline(np.percentile(r, 1), color='darkred', ls='--', lw=2, label=f'1% VaR = {np.percentile(r,1)*100:.2f}%')
+ax.axvline(np.percentile(r, 0.5), color='orange', ls='--', lw=2, label=f'0.5% VaR = {np.percentile(r,0.5)*100:.2f}%')
+ax.set_title('LEFT TAIL ZOOM: BS Underestimates Crash Risk', fontweight='bold')
+ax.set_xlabel('Log Return')
+ax.set_ylabel('Density')
+ax.legend(fontsize=8)
 ax.grid(True, alpha=0.3)
+ax.annotate('Fat tails!\nBS assigns near-zero\nprobability here',
+            xy=(-0.08, 0.5), fontsize=9, color='red', fontweight='bold',
+            ha='center')
 
 plt.tight_layout()
 plt.savefig(f'{FIGURES_DIR}01_data_overview.png')
@@ -292,51 +297,101 @@ mjd_call, mjd_put, se_jc, se_jp, log_paths_mjd = mjd_monte_carlo(
 print(f'  MJD MC Call={mjd_call:.2f}, Put={mjd_put:.2f}')
 
 # ============================================================
-# Figure 3: GBM vs MJD Paths
+# Figure 3: GBM vs MJD Paths — 1 year horizon, jumps emphasized
 # ============================================================
 print('  Generating Figure 3: GBM vs MJD Paths...')
-fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
+T_demo = 1.0
+n_steps_demo = 252
+dt_demo = T_demo / n_steps_demo
+t_demo = np.arange(n_steps_demo)
+
+# Top-left: GBM paths (smooth)
+ax = axes[0, 0]
 np.random.seed(42)
-n_demo = 8
-n_steps_demo = int(T * 252)
-dt_demo = T / n_steps_demo
-t_demo = np.linspace(0, T * 252, n_steps_demo)
-
-ax = axes[0]
-for i in range(n_demo):
+for i in range(6):
     Z = np.random.standard_normal(n_steps_demo)
     log_s = np.log(S0) + np.cumsum((r_f - 0.5*sigma_mle**2)*dt_demo + sigma_mle*np.sqrt(dt_demo)*Z)
-    ax.plot(t_demo, np.exp(log_s), linewidth=1, alpha=0.8)
-ax.axhline(K, color='red', linestyle='--', label=f'Strike K={K:.0f}')
-ax.set_title('GBM Paths (Black-Scholes)', fontsize=13, fontweight='bold')
+    ax.plot(t_demo, np.exp(log_s), linewidth=1.2, alpha=0.8)
+ax.axhline(S0, color='gray', linestyle=':', alpha=0.5)
+ax.set_title('GBM Paths (Black-Scholes) — Smooth, No Jumps', fontsize=12, fontweight='bold')
 ax.set_xlabel('Trading Days')
 ax.set_ylabel('Price (INR)')
-ax.legend()
 ax.grid(True, alpha=0.3)
 
-ax = axes[1]
+# Top-right: MJD paths with jump markers
+ax = axes[0, 1]
+np.random.seed(100)
 kappa_demo = np.exp(muj_m + 0.5*sigj_m**2) - 1
 mu_rn_demo = r_f - 0.5*sig_m**2 - lam_m*kappa_demo
-for i in range(n_demo):
+path_colors = plt.cm.tab10(np.linspace(0, 1, 6))
+for i in range(6):
     Z = np.random.standard_normal(n_steps_demo)
     N_j = np.random.poisson(lam_m * dt_demo, n_steps_demo)
     J = np.array([np.random.normal(muj_m, sigj_m, int(n)).sum() if n > 0 else 0.0 for n in N_j])
     log_s = np.log(S0) + np.cumsum(mu_rn_demo*dt_demo + sig_m*np.sqrt(dt_demo)*Z + J)
     path = np.exp(log_s)
-    ax.plot(t_demo, path, linewidth=1, alpha=0.8)
+    ax.plot(t_demo, path, linewidth=1.2, alpha=0.8, color=path_colors[i])
     jump_days = np.where(N_j > 0)[0]
+    for jd in jump_days:
+        ax.axvline(t_demo[jd], color='red', alpha=0.08, linewidth=1)
     if len(jump_days) > 0:
-        ax.scatter(t_demo[jump_days], path[jump_days], s=15, c='red', zorder=5, alpha=0.6)
-
-ax.axhline(K, color='red', linestyle='--', label=f'Strike K={K:.0f}')
-ax.scatter([], [], s=15, c='red', label='Jump events')
-ax.set_title('MJD Paths (Merton Jump-Diffusion)', fontsize=13, fontweight='bold')
+        ax.scatter(t_demo[jump_days], path[jump_days], s=40, c='red',
+                   zorder=5, alpha=0.7, edgecolors='darkred', linewidths=0.5)
+ax.scatter([], [], s=40, c='red', edgecolors='darkred', label='Jump events')
+ax.axhline(S0, color='gray', linestyle=':', alpha=0.5)
+ax.set_title('MJD Paths — Jumps Marked (red dots)', fontsize=12, fontweight='bold')
 ax.set_xlabel('Trading Days')
 ax.set_ylabel('Price (INR)')
-ax.legend()
+ax.legend(fontsize=10)
 ax.grid(True, alpha=0.3)
 
+# Bottom-left: Single path decomposition — diffusion only vs diffusion+jumps
+ax = axes[1, 0]
+np.random.seed(77)
+Z_single = np.random.standard_normal(n_steps_demo)
+N_j_single = np.random.poisson(lam_m * dt_demo, n_steps_demo)
+J_single = np.array([np.random.normal(muj_m, sigj_m, int(n)).sum() if n > 0 else 0.0 for n in N_j_single])
+
+log_s_diff = np.log(S0) + np.cumsum(mu_rn_demo*dt_demo + sig_m*np.sqrt(dt_demo)*Z_single)
+log_s_full = np.log(S0) + np.cumsum(mu_rn_demo*dt_demo + sig_m*np.sqrt(dt_demo)*Z_single + J_single)
+
+ax.plot(t_demo, np.exp(log_s_diff), color='#1B3A6B', linewidth=2, label='Diffusion only (no jumps)', alpha=0.8)
+ax.plot(t_demo, np.exp(log_s_full), color='#C8521A', linewidth=2, label='Diffusion + Jumps (MJD)', alpha=0.9)
+jump_days_s = np.where(N_j_single > 0)[0]
+for jd in jump_days_s:
+    price_before = np.exp(log_s_full[max(0,jd-1)] if jd > 0 else np.log(S0))
+    price_after = np.exp(log_s_full[jd])
+    ax.annotate('', xy=(t_demo[jd], price_after), xytext=(t_demo[jd], price_before),
+                arrowprops=dict(arrowstyle='->', color='red', lw=1.5))
+ax.scatter(t_demo[jump_days_s], np.exp(log_s_full[jump_days_s]), s=50, c='red',
+           zorder=5, edgecolors='darkred', linewidths=1, label='Jump impact')
+ax.set_title('Single Path Decomposition: Diffusion vs Full MJD', fontsize=12, fontweight='bold')
+ax.set_xlabel('Trading Days')
+ax.set_ylabel('Price (INR)')
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.3)
+
+# Bottom-right: Jump sizes histogram
+ax = axes[1, 1]
+np.random.seed(42)
+n_jump_samples = 10000
+jump_sizes = np.random.normal(muj_m, sigj_m, n_jump_samples)
+ax.hist(jump_sizes * 100, bins=80, density=True, color='#C8521A', alpha=0.7, edgecolor='black', linewidth=0.3)
+ax.axvline(muj_m * 100, color='darkred', linewidth=2, linestyle='--',
+           label=f'Mean jump = {muj_m*100:.2f}%')
+ax.axvline(0, color='black', linewidth=0.5)
+ax.fill_betweenx([0, ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 50], -15, muj_m*100 - 2*sigj_m*100,
+                 alpha=0.15, color='red', label='Large negative jumps')
+ax.set_title(f'Distribution of Jump Sizes J ~ N({muj_m*100:.2f}%, {sigj_m*100:.2f}%)', fontsize=12, fontweight='bold')
+ax.set_xlabel('Jump Size (%)')
+ax.set_ylabel('Density')
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.3)
+
+plt.suptitle(f'GBM vs MJD: Estimated λ = {lam_m:.1f} jumps/year, μ_J = {muj_m*100:.2f}%, σ_J = {sigj_m*100:.2f}%',
+             fontsize=14, fontweight='bold', y=1.01)
 plt.tight_layout()
 plt.savefig(f'{FIGURES_DIR}03_gbm_vs_mjd_paths.png')
 plt.close()
@@ -782,223 +837,12 @@ plt.savefig(f'{FIGURES_DIR}13_variance_reduction.png')
 plt.close()
 
 # ============================================================
-# HESTON MODEL
+# Figure 14: BS vs MJD Option Prices Across Strikes
 # ============================================================
-print('4. Heston Model...')
-
-def heston_mc(S0, K, T, r_f, v0, kappa, theta, xi, rho,
-              n_paths=50_000, n_steps=252, seed=42, return_paths=False):
-    np.random.seed(seed)
-    dt_h = T / n_steps
-    S = np.full(n_paths, float(S0))
-    v = np.full(n_paths, float(v0))
-    if return_paths:
-        S_paths = np.zeros((n_paths, n_steps))
-        v_paths = np.zeros((n_paths, n_steps))
-    for step in range(n_steps):
-        Z1 = np.random.standard_normal(n_paths)
-        Z2 = rho * Z1 + np.sqrt(1 - rho**2) * np.random.standard_normal(n_paths)
-        v_pos = np.maximum(v, 0)
-        S = S * np.exp((r_f - 0.5*v_pos)*dt_h + np.sqrt(v_pos*dt_h)*Z1)
-        v = v + kappa*(theta - v)*dt_h + xi*np.sqrt(v_pos*dt_h)*Z2
-        v = np.maximum(v, 0)
-        if return_paths:
-            S_paths[:, step] = S
-            v_paths[:, step] = v
-    payoff_call = np.maximum(S - K, 0)
-    payoff_put = np.maximum(K - S, 0)
-    discount = np.exp(-r_f * T)
-    result = {
-        'call': discount * payoff_call.mean(),
-        'put': discount * payoff_put.mean(),
-        'se_call': discount * payoff_call.std() / np.sqrt(n_paths),
-        'se_put': discount * payoff_put.std() / np.sqrt(n_paths)
-    }
-    if return_paths:
-        result['S_paths'] = S_paths
-        result['v_paths'] = v_paths
-    return result
-
-v0_h = sigma_mle**2
-kappa_h = 3.0
-theta_h = sigma_mle**2
-xi_h = 0.4
-rho_h = -0.7
-
-heston_result = heston_mc(S0, K, T, r_f, v0_h, kappa_h, theta_h, xi_h, rho_h,
-                          n_paths=50_000, return_paths=True)
-print(f'  Heston Call={heston_result["call"]:.2f}, Put={heston_result["put"]:.2f}')
-
-# ============================================================
-# Figure 14: Heston Paths
-# ============================================================
-print('  Generating Figure 14: Heston Paths...')
-fig, axes = plt.subplots(2, 1, figsize=(16, 10))
-
-n_show = 10
-t_heston = np.linspace(0, T*252, heston_result['S_paths'].shape[1])
-
-ax = axes[0]
-for i in range(n_show):
-    ax.plot(t_heston, heston_result['S_paths'][i, :], linewidth=0.8, alpha=0.7)
-ax.axhline(K, color='red', linestyle='--', label=f'Strike K={K:.0f}')
-ax.set_title('Heston Model: Sample Price Paths S(t)', fontweight='bold')
-ax.set_ylabel('Price (INR)')
-ax.legend()
-ax.grid(True, alpha=0.3)
-
-ax = axes[1]
-for i in range(n_show):
-    ax.plot(t_heston, np.sqrt(heston_result['v_paths'][i, :]) * 100, linewidth=0.8, alpha=0.7)
-ax.axhline(np.sqrt(theta_h) * 100, color='red', linestyle='--',
-           label=f'Long-run sqrt(theta) = {np.sqrt(theta_h)*100:.1f}%')
-ax.set_title('Heston Model: Stochastic Volatility sqrt(v(t))', fontweight='bold')
-ax.set_xlabel('Trading Days')
-ax.set_ylabel('Volatility (%)')
-ax.legend()
-ax.grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.savefig(f'{FIGURES_DIR}14_heston_paths.png')
-plt.close()
-
-# ============================================================
-# Figure 15: Heston IV Surface
-# ============================================================
-print('  Generating Figure 15: Heston IV Surface...')
-maturities = [7, 14, 30, 60, 90, 180]
-moneyness_range = np.linspace(0.85, 1.15, 15)
-
-iv_surface = np.zeros((len(maturities), len(moneyness_range)))
-
-for i, T_mat in enumerate(maturities):
-    T_y = T_mat / 252
-    for j, m in enumerate(moneyness_range):
-        K_i = S0 * m
-        h_res = heston_mc(S0, K_i, T_y, r_f, v0_h, kappa_h, theta_h, xi_h, rho_h,
-                          n_paths=15_000, n_steps=max(T_mat, 30), seed=42)
-        iv_val = bs_iv(h_res['call'], S0, K_i, T_y, r_f, 'call')
-        iv_surface[i, j] = iv_val * 100 if not np.isnan(iv_val) else np.nan
-
-fig, ax = plt.subplots(figsize=(14, 8))
-X, Y = np.meshgrid(moneyness_range, maturities)
-cs = ax.contourf(X, Y, iv_surface, levels=20, cmap='RdYlBu_r')
-plt.colorbar(cs, label='Implied Volatility (%)')
-ax.set_xlabel('Moneyness (K/S0)', fontsize=12)
-ax.set_ylabel('Maturity (trading days)', fontsize=12)
-ax.set_title('Heston Implied Volatility Surface\nStochastic vol produces realistic smile & term structure',
-             fontweight='bold', fontsize=13)
-ax.grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.savefig(f'{FIGURES_DIR}15_heston_iv_surface.png')
-plt.close()
-
-# ============================================================
-# Figure 16: Tamed Euler Convergence
-# ============================================================
-print('  Generating Figure 16: Tamed Euler Convergence...')
-
-def simulate_cir_euler(v0, kappa, theta, xi, T, n_steps, seed=42):
-    np.random.seed(seed)
-    dt_c = T / n_steps
-    v = np.zeros(n_steps + 1)
-    v[0] = v0
-    for i in range(n_steps):
-        Z = np.random.standard_normal()
-        v[i+1] = v[i] + kappa*(theta - v[i])*dt_c + xi*np.sqrt(abs(v[i])*dt_c)*Z
-    return v
-
-def simulate_cir_tamed_euler(v0, kappa, theta, xi, T, n_steps, seed=42):
-    np.random.seed(seed)
-    dt_c = T / n_steps
-    v = np.zeros(n_steps + 1)
-    v[0] = v0
-    for i in range(n_steps):
-        Z = np.random.standard_normal()
-        v_pos = max(v[i], 0)
-        drift = kappa*(theta - v_pos)
-        diffusion = xi*np.sqrt(v_pos)
-        taming_factor = 1.0 / (1.0 + dt_c * (abs(drift) + diffusion**2))
-        v[i+1] = v[i] + taming_factor * drift * dt_c + taming_factor * diffusion * np.sqrt(dt_c) * Z
-        v[i+1] = max(v[i+1], 0)
-    return v
-
-T_cir = 1.0
-n_steps_cir = 500
-v0_cir = 0.04
-kappa_cir = 2.0
-theta_cir = 0.04
-xi_cir = 0.8
-
-t_cir = np.linspace(0, T_cir, n_steps_cir + 1)
-
-fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-
-ax = axes[0]
-for seed_i in range(5):
-    v_euler = simulate_cir_euler(v0_cir, kappa_cir, theta_cir, xi_cir, T_cir, n_steps_cir, seed=seed_i)
-    v_tamed = simulate_cir_tamed_euler(v0_cir, kappa_cir, theta_cir, xi_cir, T_cir, n_steps_cir, seed=seed_i)
-    ax.plot(t_cir, v_euler, color='#1B3A6B', alpha=0.5, linewidth=0.8)
-    ax.plot(t_cir, v_tamed, color='#C8521A', alpha=0.5, linewidth=0.8)
-
-ax.plot([], [], color='#1B3A6B', label='Standard Euler')
-ax.plot([], [], color='#C8521A', label='Tamed Euler (DKS16)')
-ax.axhline(0, color='black', linewidth=0.5)
-ax.axhline(theta_cir, color='green', linestyle='--', alpha=0.5, label=f'theta = {theta_cir}')
-ax.set_title('CIR Variance Process: Standard vs Tamed Euler\n(xi = 0.8, Feller condition violated)',
-             fontweight='bold')
-ax.set_xlabel('Time (years)')
-ax.set_ylabel('v(t)')
-ax.legend()
-ax.grid(True, alpha=0.3)
-
-ax = axes[1]
-step_sizes = [50, 100, 200, 500, 1000, 2000]
-errors_euler = []
-errors_tamed = []
-n_mc = 3000
-
-ref_vals = []
-for seed_i in range(n_mc):
-    v_ref = simulate_cir_tamed_euler(v0_cir, kappa_cir, theta_cir, xi_cir, T_cir, 10000, seed=seed_i)
-    ref_vals.append(v_ref[-1])
-ref_mean = np.mean(ref_vals)
-
-for ns in step_sizes:
-    euler_vals = []
-    tamed_vals = []
-    for seed_i in range(n_mc):
-        v_e = simulate_cir_euler(v0_cir, kappa_cir, theta_cir, xi_cir, T_cir, ns, seed=seed_i)
-        v_t = simulate_cir_tamed_euler(v0_cir, kappa_cir, theta_cir, xi_cir, T_cir, ns, seed=seed_i)
-        euler_vals.append(v_e[-1])
-        tamed_vals.append(v_t[-1])
-    errors_euler.append(abs(np.mean(euler_vals) - ref_mean))
-    errors_tamed.append(abs(np.mean(tamed_vals) - ref_mean))
-
-dt_vals = [T_cir / ns for ns in step_sizes]
-ax.loglog(dt_vals, errors_euler, 'o-', color='#1B3A6B', linewidth=2, label='Standard Euler')
-ax.loglog(dt_vals, errors_tamed, 's-', color='#C8521A', linewidth=2, label='Tamed Euler (DKS16)')
-dt_ref = np.array(dt_vals)
-ax.loglog(dt_ref, 0.01*np.sqrt(dt_ref), 'k--', alpha=0.5, label='O(sqrt(dt)) reference')
-ax.set_title('Weak Convergence: E[v(T)] Error vs Step Size', fontweight='bold')
-ax.set_xlabel('dt')
-ax.set_ylabel('|E[v_hat(T)] - E[v(T)]|')
-ax.legend()
-ax.grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.savefig(f'{FIGURES_DIR}16_tamed_euler_convergence.png')
-plt.close()
-
-# ============================================================
-# Figure 17: All Models Option Prices
-# ============================================================
-print('  Generating Figure 17: All Models Option Prices...')
+print('  Generating Figure 14: BS vs MJD Option Prices...')
 strike_range = np.linspace(S0 * 0.85, S0 * 1.15, 20)
 bs_prices_arr = []
 mjd_prices_arr = []
-heston_prices_arr = []
 
 for Ki in strike_range:
     p_bs, _, _ = black_scholes(S0, Ki, T, r_f, sigma_mle, 'call')
@@ -1006,9 +850,6 @@ for Ki in strike_range:
     p_mjd, _, _, _ = mjd_monte_carlo(S0, Ki, T, r_f, sig_m, lam_m, muj_m, sigj_m,
                                       n_paths=30_000, n_steps=60, seed=42)
     mjd_prices_arr.append(p_mjd)
-    h_res = heston_mc(S0, Ki, T, r_f, v0_h, kappa_h, theta_h, xi_h, rho_h,
-                      n_paths=30_000, n_steps=60, seed=42)
-    heston_prices_arr.append(h_res['call'])
 
 fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 moneyness_plot = strike_range / S0
@@ -1016,35 +857,36 @@ moneyness_plot = strike_range / S0
 ax = axes[0]
 ax.plot(moneyness_plot, bs_prices_arr, 'o-', color='#1B3A6B', linewidth=2, label='Black-Scholes')
 ax.plot(moneyness_plot, mjd_prices_arr, 's-', color='#C8521A', linewidth=2, label='Merton JD')
-ax.plot(moneyness_plot, heston_prices_arr, '^-', color='#2E8B57', linewidth=2, label='Heston')
 ax.axvline(1.0, color='gray', linestyle=':', alpha=0.5)
 ax.set_xlabel('Moneyness (K/S0)', fontsize=12)
 ax.set_ylabel('Call Price (INR)', fontsize=12)
-ax.set_title('European Call Prices Across Models', fontweight='bold')
+ax.set_title('European Call Prices: BS vs MJD', fontweight='bold')
 ax.legend(fontsize=11)
 ax.grid(True, alpha=0.3)
 
 ax = axes[1]
 ax.plot(moneyness_plot, np.array(mjd_prices_arr) - np.array(bs_prices_arr), 's-',
         color='#C8521A', linewidth=2, label='MJD - BS')
-ax.plot(moneyness_plot, np.array(heston_prices_arr) - np.array(bs_prices_arr), '^-',
-        color='#2E8B57', linewidth=2, label='Heston - BS')
 ax.axhline(0, color='black', linewidth=0.5)
 ax.axvline(1.0, color='gray', linestyle=':', alpha=0.5)
+ax.fill_between(moneyness_plot, 0, np.array(mjd_prices_arr) - np.array(bs_prices_arr),
+                where=np.array(mjd_prices_arr) > np.array(bs_prices_arr), alpha=0.2, color='#C8521A')
+ax.fill_between(moneyness_plot, 0, np.array(mjd_prices_arr) - np.array(bs_prices_arr),
+                where=np.array(mjd_prices_arr) < np.array(bs_prices_arr), alpha=0.2, color='#1B3A6B')
 ax.set_xlabel('Moneyness (K/S0)', fontsize=12)
-ax.set_ylabel('Price Difference from BS (INR)', fontsize=12)
+ax.set_ylabel('Price Difference: MJD - BS (INR)', fontsize=12)
 ax.set_title('Pricing Deviation from Black-Scholes', fontweight='bold')
 ax.legend(fontsize=11)
 ax.grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig(f'{FIGURES_DIR}17_option_prices_all_models.png')
+plt.savefig(f'{FIGURES_DIR}14_bs_vs_mjd_prices.png')
 plt.close()
 
 # ============================================================
-# Figure 18: Summary Dashboard
+# Figure 15: Summary Dashboard (BS vs MJD only)
 # ============================================================
-print('  Generating Figure 18: Summary Dashboard...')
+print('  Generating Figure 15: Summary Dashboard...')
 emp_kurt = float(log_returns.kurtosis())
 bs_kurt = 0.0
 denom = (sig_m**2 + lam_m*(muj_m**2 + sigj_m**2))**2
@@ -1056,7 +898,7 @@ else:
 fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
 ax = axes[0, 0]
-ax.barh(['BS', 'MJD', 'Heston'], [2, 5, 5], color=['#1B3A6B', '#C8521A', '#2E8B57'], alpha=0.8)
+ax.barh(['BS (2 params)', 'MJD (5 params)'], [2, 5], color=['#1B3A6B', '#C8521A'], alpha=0.8)
 ax.set_xlabel('Number of Parameters')
 ax.set_title('Model Complexity', fontweight='bold')
 ax.grid(True, alpha=0.3, axis='x')
@@ -1066,20 +908,18 @@ bars = ax.bar(['BS', 'MJD'], [ll_bs, ll_mjd], color=['#1B3A6B', '#C8521A'], alph
 for bar, val in zip(bars, [ll_bs, ll_mjd]):
     ax.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
             f'{val:.0f}', ha='center', va='bottom', fontweight='bold', fontsize=10)
-ax.set_title('Log-Likelihood', fontweight='bold')
+ax.set_title('Log-Likelihood (higher = better)', fontweight='bold')
 ax.grid(True, alpha=0.3, axis='y')
 
 ax = axes[0, 2]
-x_pos = np.arange(3)
-call_prices_all = [call_bs, mjd_call, heston_result['call']]
-put_prices_all = [put_bs, mjd_put, heston_result['put']]
+x_pos = np.arange(2)
 width = 0.35
-ax.bar(x_pos - width/2, call_prices_all, width, color=['#1B3A6B', '#C8521A', '#2E8B57'],
+ax.bar(x_pos - width/2, [call_bs, mjd_call], width, color=['#1B3A6B', '#C8521A'],
        alpha=0.8, label='Call')
-ax.bar(x_pos + width/2, put_prices_all, width, color=['#1B3A6B', '#C8521A', '#2E8B57'],
+ax.bar(x_pos + width/2, [put_bs, mjd_put], width, color=['#1B3A6B', '#C8521A'],
        alpha=0.4, label='Put', hatch='//')
 ax.set_xticks(x_pos)
-ax.set_xticklabels(['BS', 'MJD', 'Heston'])
+ax.set_xticklabels(['BS', 'MJD'])
 ax.set_title('ATM Option Prices (INR)', fontweight='bold')
 ax.legend()
 ax.grid(True, alpha=0.3, axis='y')
@@ -1089,7 +929,7 @@ x_kde2 = np.linspace(-0.06, 0.06, 500)
 ax.plot(x_kde2, kde_emp(x_kde2), 'k-', linewidth=2.5, label='Empirical')
 ax.plot(x_kde2, kde_bs(x_kde2), '--', color='#1B3A6B', linewidth=2, label='BS')
 ax.plot(x_kde2, kde_mjd(x_kde2), '--', color='#C8521A', linewidth=2, label='MJD')
-ax.set_title('Return Densities', fontweight='bold')
+ax.set_title('Return Densities (KDE)', fontweight='bold')
 ax.legend(fontsize=9)
 ax.grid(True, alpha=0.3)
 
@@ -1104,17 +944,17 @@ ax.grid(True, alpha=0.3, axis='y')
 
 ax = axes[1, 2]
 ax.bar(['LRT Statistic'], [LRT], color='#C8521A', alpha=0.8, edgecolor='black')
-ax.axhline(chi2.ppf(0.99, 3), color='red', linestyle='--', label=f'chi2(3) 1% = {chi2.ppf(0.99,3):.1f}')
-ax.axhline(chi2.ppf(0.95, 3), color='orange', linestyle='--', label=f'chi2(3) 5% = {chi2.ppf(0.95,3):.1f}')
+ax.axhline(chi2.ppf(0.99, 3), color='red', linestyle='--', label=f'chi2(3) 1% crit = {chi2.ppf(0.99,3):.1f}')
+ax.axhline(chi2.ppf(0.95, 3), color='orange', linestyle='--', label=f'chi2(3) 5% crit = {chi2.ppf(0.95,3):.1f}')
 ax.text(0, LRT + 2, f'LRT = {LRT:.1f}', ha='center', fontweight='bold', fontsize=12)
 ax.set_title('Likelihood Ratio Test\nBS vs MJD', fontweight='bold')
 ax.legend(fontsize=9)
 ax.grid(True, alpha=0.3, axis='y')
 
-plt.suptitle('Stochastic Option Pricing Models - Comprehensive Comparison',
+plt.suptitle('Black-Scholes vs Merton Jump-Diffusion — Comprehensive Comparison',
              fontsize=15, fontweight='bold', y=1.02)
 plt.tight_layout()
-plt.savefig(f'{FIGURES_DIR}18_summary_comparison.png')
+plt.savefig(f'{FIGURES_DIR}15_summary_comparison.png')
 plt.close()
 
 # ============================================================
