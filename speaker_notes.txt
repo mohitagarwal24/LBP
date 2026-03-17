@@ -1,0 +1,419 @@
+================================================================================
+  SPEAKER NOTES — Stochastic Option Pricing Presentation
+  IIT Roorkee | Under Prof. Chaman Kumar
+  
+  Read these notes aloud during each slide. Approximate timing: ~25 minutes.
+================================================================================
+
+
+SLIDE 1 — TITLE SLIDE (~30 seconds)
+───────────────────────────────────
+Good morning/afternoon everyone. My name is [YOUR NAME], and today I will be
+presenting my Lab-Based Project on the Comparative Study of Stochastic Models
+for Option Pricing, specifically calibrated to the Indian stock market using
+NIFTY 50 data. This project is being done under the supervision of Professor
+Chaman Kumar from the Department of Mathematics.
+
+
+SLIDE 2 — OUTLINE (~30 seconds)
+────────────────────────────────
+Let me quickly walk you through what we will cover. I'll start with the
+motivation — why we need models beyond Black-Scholes. Then I'll describe
+the data we use. The core of the presentation covers two models in detail:
+Black-Scholes and the Merton Jump-Diffusion model. I'll show extensive
+empirical comparisons using real NIFTY 50 data. We then discuss statistical
+model selection criteria, and finally the end-term proposal which extends
+to the Heston stochastic volatility model and its connection to Professor
+Kumar's research on numerical methods for SDEs.
+
+
+SLIDE 3 — MOTIVATION (~1.5 minutes)
+────────────────────────────────────
+The Indian derivatives market, particularly NIFTY 50 index options traded on
+NSE, is among the most liquid in the world by contract volume. Yet the dominant
+model used by practitioners — Black-Scholes — makes assumptions that
+systematically fail during the kind of volatile episodes that characterize
+emerging markets like India.
+
+The key assumption violations are: constant volatility, continuous price paths,
+and Gaussian log-returns. Real markets have fat tails, negative skewness, and
+sudden large jumps — think of the COVID crash in March 2020 when NIFTY fell
+13% in a single session, or the election surprise in June 2024 when it fell 8%
+intraday.
+
+Our project builds a model hierarchy: starting from Black-Scholes, we add jumps
+to get Merton Jump-Diffusion, then stochastic volatility for Heston, and
+finally combine both for the Bates model. Each step relaxes a specific BS
+assumption and we quantify the improvement rigorously.
+
+
+SLIDE 4 — DATA OVERVIEW (~1 minute)
+────────────────────────────────────
+We use NIFTY 50 daily closing prices from January 2018 to December 2024,
+downloaded via the yfinance library. The risk-free rate proxy is the RBI
+repo rate at approximately 6.5%.
+
+Looking at the four plots: the top-left shows the price history with key events
+marked — you can see the COVID crash, the IL&FS crisis, Russia-Ukraine shock,
+and the election surprise. The top-right shows daily log returns — notice the
+extreme spikes during crisis periods. The bottom-left is critical: the return
+distribution clearly has fatter tails than the normal distribution — this is
+exactly what Black-Scholes fails to capture. The bottom-right shows rolling
+realized volatility — it's clearly not constant, it clusters, spikes during
+crises and mean-reverts — motivating stochastic volatility models.
+
+The empirical data shows negative skewness and excess kurtosis well above zero,
+which directly contradicts the Gaussian assumption of Black-Scholes.
+
+
+SLIDE 5 — BLACK-SCHOLES THEORY (~2 minutes)
+────────────────────────────────────────────
+The Black-Scholes model assumes the asset price follows Geometric Brownian
+Motion: dS = mu S dt + sigma S dW(t), where mu is the drift and sigma is
+constant volatility.
+
+Applying Ito's Lemma — and this is important — the log-price follows a normal
+distribution. The Ito correction term mu minus sigma-squared-over-two appears
+because variance contributes a compounding drag.
+
+For estimation, the daily log-returns are normally distributed, and we
+construct the log-likelihood function. We use Maximum Likelihood Estimation
+following Ait-Sahalia (2002), who showed that for the GBM case, the
+discretization error vanishes as delta-t goes to zero.
+
+For pricing, we switch from the physical measure P to the risk-neutral measure
+Q via Girsanov's theorem. Under Q, the drift becomes the risk-free rate.
+The celebrated Black-Scholes formula gives us the European call price as
+S-zero times N-of-d1 minus K-discounted times N-of-d2. We verified put-call
+parity as an internal consistency check.
+
+
+SLIDE 6 — BS RESULTS (~1 minute)
+─────────────────────────────────
+Here we see the Monte Carlo simulation results for Black-Scholes. On the left
+are sample GBM paths — notice how smooth they are, no jumps, no sudden
+dislocations. The right panel shows the terminal price distribution, which is
+log-normal as expected.
+
+The key validation: our Monte Carlo price converges to the closed-form
+Black-Scholes price as we increase the number of paths. The standard error
+shrinks at rate one-over-square-root-of-N by the Central Limit Theorem.
+This confirms both our implementation is correct and the theoretical link
+between the SDE and the pricing formula holds.
+
+
+SLIDE 7 — MERTON JD THEORY (~2 minutes)
+────────────────────────────────────────
+Now we address the main limitation of Black-Scholes by introducing the
+Merton Jump-Diffusion model from 1976. The key innovation: we superimpose a
+compound Poisson jump process onto the continuous GBM diffusion.
+
+The SDE now has three components: the drift term, the diffusion (Brownian)
+term, and a jump term where N(t) is a Poisson process with intensity lambda
+and each jump size J follows a normal distribution.
+
+The critical result: conditional on k jumps occurring, the log-return is still
+Gaussian, but with adjusted mean and variance. Marginalizing over the Poisson
+distribution of jump counts gives us a mixture of Gaussians — this is what
+creates the fat tails.
+
+The variance decomposition is illuminating: total variance equals the diffusion
+variance sigma-squared-delta-t PLUS the jump variance lambda-delta-t times
+mu-J-squared plus sigma-J-squared. The jump component directly adds excess
+kurtosis proportional to lambda, which is zero in BS.
+
+For risk-neutral pricing, we introduce the compensated drift using kappa
+equals E[e^J minus 1], ensuring the discounted price process is a martingale
+under Q. The parameter vector has 5 parameters versus BS's 2, and we estimate
+them via MLE using the Gaussian mixture likelihood, optimized with L-BFGS-B.
+
+
+SLIDE 8 — GBM vs MJD PATHS (~45 seconds)
+─────────────────────────────────────────
+This figure dramatically illustrates the difference. On the left, GBM paths
+are smooth and continuous. On the right, MJD paths have sudden jumps — marked
+with red dots. These jumps are exactly the kind of price dislocations we
+observe in real markets.
+
+When NIFTY crashed 13% on March 23rd, 2020 — that was essentially a jump
+event. GBM assigns virtually zero probability to such a move; MJD naturally
+models it through its Poisson jump component.
+
+
+SLIDE 9 — TAIL BEHAVIOR (~1.5 minutes)
+───────────────────────────────────────
+This is one of the most important slides. We compare the simulated return
+distributions from BS and MJD against actual empirical NIFTY returns.
+
+The left panel shows the full distributions — the gray is empirical, blue is
+BS (Gaussian), and orange is MJD (mixture). The middle panel zooms into the
+LEFT TAIL — this is the crash risk region. You can clearly see that BS has
+virtually no density where the empirical distribution still has significant
+mass. MJD's mixture distribution captures these fat tails much better.
+
+The right panel uses kernel density estimation for a smooth comparison.
+The empirical density has sharper peak and heavier tails than BS — a classic
+sign of leptokurtosis. MJD's KDE curve tracks the empirical density much
+more closely, especially in the critical tail regions.
+
+This matters enormously for option pricing: deep out-of-the-money puts
+protect against crashes. If your model underestimates crash probability, you
+will systematically underprice these protective options.
+
+
+SLIDE 10 — QQ PLOTS (~45 seconds)
+──────────────────────────────────
+The QQ plots provide another diagnostic. On the left, empirical quantiles
+versus normal (BS) quantiles — the departure from the 45-degree line at both
+extremes shows the tails are too heavy for a Gaussian model. The S-shape is
+characteristic of fat-tailed distributions.
+
+On the right, empirical versus MJD quantiles — much better alignment,
+especially in the tails. The points stay closer to the 45-degree line,
+confirming that MJD's Gaussian mixture captures the quantile structure of
+NIFTY returns.
+
+
+SLIDE 11 — STATISTICAL MODEL SELECTION (~1 minute)
+───────────────────────────────────────────────────
+We don't just rely on visual comparisons — we use formal statistical criteria.
+The three bar charts show log-likelihood, AIC, and BIC for both models.
+
+MJD has strictly higher log-likelihood. The Likelihood Ratio Test statistic is
+2 times the difference, distributed as chi-squared with 3 degrees of freedom
+under the null hypothesis that lambda equals zero (i.e., no jumps). The
+p-value is extremely small, meaning adding jumps is statistically highly
+significant.
+
+Both AIC and BIC favor MJD despite the complexity penalty for the 3 extra
+parameters. This means the gain in fit from adding jumps far outweighs the
+cost of additional model complexity.
+
+
+SLIDE 12 — IMPLIED VOLATILITY SMILE (~1 minute)
+────────────────────────────────────────────────
+This is a fundamental result. We price European calls under MJD across a range
+of strikes, then back out the Black-Scholes implied volatility from each MJD
+price. The resulting curve is the orange line — it shows a clear volatility
+smile, higher at the wings.
+
+The blue dashed line is BS's constant sigma. BS cannot produce this pattern by
+construction — it assumes flat IV across all strikes. But the market clearly
+displays a smile, particularly a skew with higher IV for out-of-the-money
+puts.
+
+This smile inconsistency was first documented by Rubinstein in 1994 and is
+one of the main motivations for going beyond Black-Scholes. MJD's jump
+component naturally generates this skew because jumps are more impactful for
+out-of-the-money options.
+
+
+SLIDE 13 — PARAMETER SENSITIVITY (~45 seconds)
+───────────────────────────────────────────────
+This heatmap shows MJD ATM call prices as a function of two key parameters:
+jump intensity lambda on the x-axis and jump volatility sigma-J on the y-axis.
+
+The interaction is clearly non-linear — higher lambda and higher sigma-J both
+increase the option price, but their combined effect is more than additive.
+This represents the crash risk premium that practitioners need to capture.
+
+This kind of sensitivity analysis is impossible in the BS world where there
+are only two parameters.
+
+
+SLIDE 14 — MC CONVERGENCE (~30 seconds)
+────────────────────────────────────────
+The left panel confirms that our MC estimator converges to the closed-form BS
+price as we increase paths from 100 to 500,000. The right panel shows standard
+error decreasing at exactly the theoretical 1/√N rate on a log-log scale.
+
+This validates both our implementation and the theoretical convergence
+guarantees from the CLT.
+
+
+SLIDE 15 — EVENT ANALYSIS (~1 minute)
+─────────────────────────────────────
+We anchor our model comparison to specific Indian market events. Each subplot
+shows NIFTY prices in a 120-day window around a crisis event, with the 1-day
+return annotated.
+
+The COVID crash of March 2020 shows the most extreme move. The election
+surprise of June 2024 is another clear jump event. The IL&FS crisis in 2018
+triggered a sustained selloff. Russia-Ukraine caused a sharp but shorter
+correction.
+
+For each event, we can compute the ex-ante BS and MJD option prices and
+compare to realized payoffs. The pricing error directly quantifies how much
+each model undervalued crash protection for NIFTY options traders.
+
+
+SLIDE 16 — TAIL RISK PROBABILITY (~1 minute)
+─────────────────────────────────────────────
+This is a powerful visual. The y-axis is on a log scale, showing the
+probability of a daily loss exceeding the x-axis value.
+
+The black line is empirical — the actual frequency of extreme losses in NIFTY
+data. The blue dashed line is BS — notice how it drops off exponentially fast.
+For a 13% daily crash, BS assigns essentially zero probability. But it
+happened.
+
+The orange dashed line is MJD — it stays much closer to the empirical line
+in the tail region. The highlighted bars show where the COVID crash (13%)
+and election surprise (8%) fall.
+
+This has direct implications for risk management and SEBI regulatory
+compliance: models that underestimate tail risk lead to insufficient capital
+reserves.
+
+
+SLIDE 17 — VaR BACKTESTING (~1 minute)
+───────────────────────────────────────
+We backtest the 1% daily Value-at-Risk using a 252-day rolling window. The
+top panel shows actual returns in gray, with the BS VaR threshold in blue.
+Red dots mark VaR breaches — days when the actual loss exceeded the model's
+predicted worst-case.
+
+The bottom panel shows cumulative breaches over time. The expected count for
+a well-calibrated model is 1% of observations, shown by the dashed line. BS
+has significantly more breaches than expected — it fails the Kupiec test. The
+empirical VaR stays closer to the expected rate.
+
+
+SLIDE 18 — VARIANCE REDUCTION (~30 seconds)
+────────────────────────────────────────────
+Since Monte Carlo is our primary pricing engine, we implement two standard
+variance reduction techniques from Glasserman (2003).
+
+Antithetic variates pair each random draw Z with minus Z, roughly halving the
+variance. Control variates use the BS closed-form as a control for the MJD
+Monte Carlo, exploiting the correlation between payoffs. Both significantly
+reduce standard error, which means we need fewer paths for the same accuracy.
+
+
+SLIDE 19 — HESTON MODEL (~1.5 minutes)
+───────────────────────────────────────
+Moving to the end-term proposal. The Heston model from 1993 allows the
+variance itself to be stochastic, following a CIR process. The price depends
+on square-root of v(t), and the variance mean-reverts toward a long-run level
+theta at speed kappa.
+
+The key parameter rho — the correlation between price and variance innovations
+— is typically negative. This captures the leverage effect: when prices fall,
+volatility tends to rise.
+
+The Feller condition 2-kappa-theta > xi-squared ensures variance stays
+positive. When violated, the Euler scheme can produce negative variance —
+which is where Professor Kumar's research on tamed Euler schemes becomes
+directly relevant.
+
+On the right you can see sample paths — the price paths in the top panel,
+and the stochastic volatility in the bottom. Notice how volatility fluctuates
+and mean-reverts, unlike the constant sigma in BS.
+
+
+SLIDE 20 — HESTON IV SURFACE (~45 seconds)
+───────────────────────────────────────────
+This implied volatility surface shows IV as a function of moneyness and
+maturity under the Heston model. The contour plot reveals the characteristic
+skew and term structure — short-maturity options show a steeper smile, while
+longer-maturity smiles are flatter.
+
+This is what BS cannot produce — it would just be a flat plane at constant
+sigma. The Heston model's stochastic volatility and negative correlation
+naturally generate this realistic surface that matches market observations.
+
+
+SLIDE 21 — SUPERVISOR'S RESEARCH (~1.5 minutes)
+────────────────────────────────────────────────
+This is an important connection. The CIR variance process in Heston has
+a square-root diffusion coefficient — this is a non-globally-Lipschitz
+coefficient. Standard Euler-Maruyama discretization can produce negative
+variance values, which is mathematically inconsistent.
+
+Professor Kumar's research directly addresses this challenge. The tamed
+Euler scheme from the 2016 SIAM paper, co-authored with Dareiotis and
+Sabanis, introduces a taming factor that prevents numerical explosion while
+maintaining convergence. This is published in SIAM Journal on Numerical
+Analysis with an impact factor of 2.712.
+
+The explicit tamed Milstein schemes from 2017 and 2020 provide higher-order
+convergence for Levy-driven SDEs with super-linear coefficients — exactly
+the class of equations arising in stochastic volatility models. The regime-
+switching Milstein scheme from 2020 is relevant to extensions of Heston
+where volatility dynamics change across market regimes.
+
+The McKean-Vlasov preprint represents future scope: mean-field game
+formulations of multi-agent option markets.
+
+
+SLIDE 22 — TAMED EULER RESULTS (~45 seconds)
+─────────────────────────────────────────────
+Here we demonstrate the practical impact. The left panel compares CIR
+variance paths under standard Euler (blue) and tamed Euler (orange) with
+deliberately high vol-of-vol to stress the scheme. Standard Euler can produce
+negative excursions; tamed Euler maintains non-negativity.
+
+The right panel shows weak convergence — the error in the expected terminal
+variance versus step size. Both achieve the theoretical O(square-root-delta-t)
+rate, but the tamed scheme does so without the numerical artifacts.
+
+
+SLIDE 23 — ALL MODELS COMPARISON (~45 seconds)
+───────────────────────────────────────────────
+This final comparison shows option prices across strikes for all three models.
+The left panel shows absolute prices; the right shows the deviation from BS.
+
+MJD deviates most for out-of-the-money options where tail risk matters.
+Heston deviates more symmetrically due to the volatility smile. The Bates
+model — which we'll implement in the end-term — will combine both effects.
+
+
+SLIDE 24 — SUMMARY DASHBOARD (~30 seconds)
+───────────────────────────────────────────
+This six-panel dashboard summarizes everything: model complexity, log-
+likelihood improvement, ATM prices, return density fits, excess kurtosis, and
+the LRT statistic. The key takeaway: MJD is statistically superior to BS on
+NIFTY 50 data, and the improvement is driven by the jump component capturing
+fat tails.
+
+
+SLIDE 25 — MODEL COMPARISON TABLE (~30 seconds)
+────────────────────────────────────────────────
+This table provides a quick-reference comparison of all four models across key
+dimensions. The rightmost columns — Heston and Bates — are the end-term
+targets. Bates, with 8 parameters, is the most flexible and expected to
+provide the best overall fit.
+
+
+SLIDE 26 — END-TERM PLAN (~45 seconds)
+───────────────────────────────────────
+For the end-term, we plan to: fully calibrate Heston and Bates to the live
+NIFTY option chain, perform comprehensive 4-model comparison on pricing RMSE,
+IV smile fit, and VaR backtesting, compute Greeks under each model, and
+rigorously connect the numerical discretization to Professor Kumar's research
+on tamed schemes. The McKean-Vlasov direction remains as future scope.
+
+
+SLIDE 27 — REFERENCES (~15 seconds)
+────────────────────────────────────
+All references are listed here — the foundational models, statistical methods,
+and importantly, five publications from Professor Kumar's research group that
+directly inform the numerical aspects of this project.
+
+
+SLIDE 28 — THANK YOU (~15 seconds)
+───────────────────────────────────
+Thank you for your attention. I'm happy to take any questions.
+
+
+================================================================================
+  TOTAL ESTIMATED TIME: ~22-25 minutes
+  
+  KEY POINTS TO EMPHASIZE IF ASKED:
+  1. BS fails because of constant vol + continuous paths → can't capture jumps
+  2. MJD adds jumps → fat tails → better NIFTY fit (statistically significant)
+  3. LRT p-value is very small → jumps are essential, not just nice-to-have
+  4. Heston/Bates add stochastic vol → full smile → end-term deliverables
+  5. Prof. Kumar's tamed Euler schemes solve the CIR negativity problem
+  6. All results are calibrated to real NIFTY 50 data, not synthetic
+================================================================================
