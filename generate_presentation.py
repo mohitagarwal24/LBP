@@ -1,9 +1,7 @@
 """
-Generate PPTX presentation focused on Black–Scholes and Merton
-Jump–Diffusion models for NIFTY 50, with strong emphasis on MLE
-derivations and visual evidence of fat tails.
+PPTX: Stochastic Option Pricing on NIFTY 50
+Focus: BS vs MJD OPTION PRICES (not stock returns)
 """
-
 import os
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -11,847 +9,361 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
 
-FIGURES_DIR = "figures/"
-OUTPUT_FILE = "Stochastic_Option_Pricing_Presentation_v2.pptx"
+FIG = "figures/"
+OUT = "Stochastic_Option_Pricing_Presentation_v3.pptx"
 
-DARK_BLUE = RGBColor(0x1B, 0x3A, 0x6B)
-ORANGE = RGBColor(0xC8, 0x52, 0x1A)
-WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-BLACK = RGBColor(0x00, 0x00, 0x00)
-ACCENT_GOLD = RGBColor(0xD4, 0xA0, 0x2F)
+DB = RGBColor(0x1B,0x3A,0x6B); OR = RGBColor(0xC8,0x52,0x1A)
+WH = RGBColor(0xFF,0xFF,0xFF); BK = RGBColor(0x00,0x00,0x00)
+GD = RGBColor(0xD4,0xA0,0x2F); GY = RGBColor(0x44,0x44,0x44)
 
 prs = Presentation()
-prs.slide_width = Inches(13.333)
-prs.slide_height = Inches(7.5)
+prs.slide_width = Inches(13.333); prs.slide_height = Inches(7.5)
 
+def bg(s, c=DB):
+    f=s.background.fill; f.solid(); f.fore_color.rgb=c
+def bar(s,l,t,w,h,c=OR):
+    sh=s.shapes.add_shape(MSO_SHAPE.RECTANGLE,Inches(l),Inches(t),Inches(w),Inches(h))
+    sh.fill.solid(); sh.fill.fore_color.rgb=c; sh.line.fill.background()
+def tx(s,l,t,w,h,txt,fs=18,c=WH,b=False,a=PP_ALIGN.LEFT):
+    bx=s.shapes.add_textbox(Inches(l),Inches(t),Inches(w),Inches(h))
+    p=bx.text_frame.paragraphs[0]; bx.text_frame.word_wrap=True
+    p.text=txt; p.font.size=Pt(fs); p.font.color.rgb=c; p.font.bold=b; p.font.name='Calibri'; p.alignment=a
+def bl(s,l,t,w,h,items,fs=16,c=BK):
+    bx=s.shapes.add_textbox(Inches(l),Inches(t),Inches(w),Inches(h))
+    tf=bx.text_frame; tf.word_wrap=True
+    for i,line in enumerate(items):
+        p=tf.paragraphs[0] if i==0 else tf.add_paragraph()
+        p.text=line; p.font.size=Pt(fs); p.font.color.rgb=c; p.font.name='Calibri'
+def img(s,f,l,t,w=None,h=None,width=None,height=None):
+    p=os.path.join(FIG,f)
+    if not os.path.exists(p): return
+    ww=w or width; hh=h or height
+    kw={}
+    if ww: kw['width']=Inches(ww)
+    if hh: kw['height']=Inches(hh)
+    s.shapes.add_picture(p,Inches(l),Inches(t),**kw)
 
-def add_background(slide, color=DARK_BLUE):
-    bg = slide.background
-    fill = bg.fill
-    fill.solid()
-    fill.fore_color.rgb = color
+# ── Slide 1: Title ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s)
+bar(s,0,0,13.333,.15); bar(s,0,7.35,13.333,.15)
+tx(s,1.5,1,10,1.5,'COMPARATIVE STUDY OF STOCHASTIC MODELS\nFOR OPTION PRICING',36,WH,True,PP_ALIGN.CENTER)
+tx(s,1.5,2.8,10,.6,'Black–Scholes vs Merton Jump–Diffusion on NIFTY 50 Options',22,GD,False,PP_ALIGN.CENTER)
+bar(s,4,3.6,5,.04)
+tx(s,1.5,5,10,.4,'Mid-Term Evaluation | Academic Year 2025–26',16,RGBColor(0x99,0xBB,0xDD),False,PP_ALIGN.CENTER)
+tx(s,1.5,5.6,10,.4,'Under supervision of Prof. Chaman Kumar',18,WH,True,PP_ALIGN.CENTER)
+tx(s,1.5,6.2,10,.4,'Department of Mathematics, IIT Roorkee',14,RGBColor(0x99,0xBB,0xDD),False,PP_ALIGN.CENTER)
 
+# ── Slide 2: Outline ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,7,.6,'Outline',32,DB,True); bar(s,.8,1,.3,.04)
+bl(s,.8,1.4,5.5,5,[
+    '1. Motivation: why option pricing needs better models',
+    '2. Data & Model Calibration (MLE on NIFTY returns)',
+    '3. Black–Scholes option pricing:',
+    '   • GBM SDE → MLE → closed-form call/put → MC',
+    '4. Merton Jump–Diffusion option pricing:',
+    '   • SDE with jumps → MLE → MC pricing',
+],17)
+bl(s,7,1.4,5.5,5,[
+    '5. Option price comparison:',
+    '   • Calls & puts across strikes',
+    '   • OTM puts: where BS fails catastrophically',
+    '   • Implied volatility smile',
+    '   • Option pricing at crisis events',
+    '6. Statistical model selection (LRT, AIC/BIC)',
+    '7. Future work: Heston & Bates models',
+],17)
 
-def add_textbox(
-    slide,
-    left,
-    top,
-    width,
-    height,
-    text,
-    font_size=18,
-    color=WHITE,
-    bold=False,
-    alignment=PP_ALIGN.LEFT,
-    font_name="Calibri",
-):
-    tx = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
-    tf = tx.text_frame
-    tf.word_wrap = True
-    p = tf.paragraphs[0]
-    p.text = text
-    p.font.size = Pt(font_size)
-    p.font.color.rgb = color
-    p.font.bold = bold
-    p.font.name = font_name
-    p.alignment = alignment
-    return tx
-
-
-def add_bullets(
-    slide, left, top, width, height, bullets, font_size=16, color=BLACK, font_name="Calibri"
-):
-    tx = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
-    tf = tx.text_frame
-    tf.word_wrap = True
-    for i, line in enumerate(bullets):
-        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-        p.text = line
-        p.font.size = Pt(font_size)
-        p.font.color.rgb = color
-        p.font.name = font_name
-        p.level = 0
-    return tx
-
-
-def add_image(slide, filename, left, top, width=None, height=None):
-    path = os.path.join(FIGURES_DIR, filename)
-    if not os.path.exists(path):
-        return False
-    kwargs = {}
-    if width:
-        kwargs["width"] = Inches(width)
-    if height:
-        kwargs["height"] = Inches(height)
-    slide.shapes.add_picture(path, Inches(left), Inches(top), **kwargs)
-    return True
-
-
-def add_bar(slide, left, top, width, height, color=ORANGE):
-    shp = slide.shapes.add_shape(
-        MSO_SHAPE.RECTANGLE, Inches(left), Inches(top), Inches(width), Inches(height)
-    )
-    shp.fill.solid()
-    shp.fill.fore_color.rgb = color
-    shp.line.fill.background()
-    return shp
-
-
-# Backwards‑compatibility helpers for the slide code below
-def add_accent_bar(slide, left, top, width, height, color=ORANGE):
-    return add_bar(slide, left, top, width, height, color)
-
-
-def add_image_safe(slide, filename, left, top, width=None, height=None):
-    return add_image(slide, filename, left, top, width, height)
-
-
-def add_bullet_slide(slide, left, top, width, height, bullets, font_size=16, color=BLACK, font_name="Calibri"):
-    return add_bullets(slide, left, top, width, height, bullets, font_size, color, font_name)
-
-
-# ─────────────────────────────
-# Slide 1 – Title
-# ─────────────────────────────
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, DARK_BLUE)
-add_bar(slide, 0, 0, 13.333, 0.15, ORANGE)
-add_bar(slide, 0, 7.35, 13.333, 0.15, ORANGE)
-
-add_textbox(
-    slide,
-    1.5,
-    1.0,
-    10,
-    1.5,
-    "COMPARATIVE STUDY OF STOCHASTIC MODELS\nFOR OPTION PRICING",
-    font_size=36,
-    color=WHITE,
-    bold=True,
-    alignment=PP_ALIGN.CENTER,
-)
-add_textbox(
-    slide,
-    1.5,
-    2.8,
-    10,
-    0.6,
-    "Focus: Black–Scholes vs Merton Jump–Diffusion on NIFTY 50",
-    font_size=22,
-    color=ACCENT_GOLD,
-    alignment=PP_ALIGN.CENTER,
-)
-add_bar(slide, 4, 3.6, 5, 0.04, ORANGE)
-add_textbox(
-    slide,
-    1.5,
-    5.0,
-    10,
-    0.4,
-    "Project Report | Academic Year 2025–26",
-    font_size=16,
-    color=RGBColor(0x99, 0xBB, 0xDD),
-    alignment=PP_ALIGN.CENTER,
-)
-add_textbox(
-    slide,
-    1.5,
-    5.6,
-    10,
-    0.4,
-    "Under supervision of Prof. Chaman Kumar",
-    font_size=18,
-    color=WHITE,
-    bold=True,
-    alignment=PP_ALIGN.CENTER,
-)
-add_textbox(
-    slide,
-    1.5,
-    6.2,
-    10,
-    0.4,
-    "Department of Mathematics, IIT Roorkee",
-    font_size=14,
-    color=RGBColor(0x99, 0xBB, 0xDD),
-    alignment=PP_ALIGN.CENTER,
-)
-
-
-# ─────────────────────────────
-# Slide 2 – Outline
-# ─────────────────────────────
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 7, 0.6, "Outline", font_size=32, color=DARK_BLUE, bold=True)
-add_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_bullets(
-    slide,
-    0.8,
-    1.4,
-    5.7,
-    5.0,
-    [
-        "1. Motivation & empirical stylised facts (Indian market)",
-        "2. Data: NIFTY 50 (2018–2024)",
-        "3. Black–Scholes model:",
-        "   • GBM SDE and log‑price solution",
-        "   • Maximum Likelihood Estimation (MLE)",
-        "   • Closed‑form pricing & Monte Carlo",
-    ],
-    font_size=17,
-)
-add_bullets(
-    slide,
-    7.0,
-    1.4,
-    5.7,
-    5.0,
-    [
-        "4. Merton Jump–Diffusion:",
-        "   • SDE with jumps and log‑return derivation",
-        "   • Gaussian‑mixture likelihood & MLE",
-        "5. Evidence from NIFTY 50:",
-        "   • Fat tails, VaR failures, volatility smile",
-        "6. Model selection (LRT, AIC/BIC) & future work (Heston/Bates)",
-    ],
-    font_size=17,
-)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 3: Motivation
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 8, 0.6, '1. Motivation & Background', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-bullets_motivation = [
-    '• Indian derivatives market (NIFTY 50 options) is among the most liquid globally',
-    '• Black-Scholes assumes constant volatility & continuous paths — violated in practice',
-    '• Extreme events in India: COVID crash (−13% single day), IL&FS crisis,',
-    '   election surprises — GBM cannot generate such dislocations',
-    '• Project goal: rigorous comparison of increasingly sophisticated stochastic models',
-    '   calibrated to NIFTY 50 data, benchmarked on empirical features',
+# ── Slide 3: Motivation ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'1. Why Option Pricing Needs Better Models',30,DB,True); bar(s,.8,1,.3,.04)
+bl(s,.8,1.3,11.5,5.5,[
+    '• NIFTY 50 index options are among the most actively traded contracts globally',
+    '• Practitioners use Black-Scholes to price & hedge — but it systematically misprices:',
+    '   – Deep out-of-the-money (OTM) PUTS are underpriced → inadequate crash protection',
+    '   – The "volatility smile" in market data contradicts BS flat-IV assumption',
     '',
-    'Model Hierarchy (each relaxes a key BS assumption):',
-    '   BS (constant σ) → MJD (+ jumps) → Heston (+ stochastic vol) → Bates (+ both)',
+    '• Root cause: BS assumes Gaussian log-returns (thin tails + constant volatility)',
+    '  → assigns near-zero probability to large moves like COVID −13% day, election −8% gap',
     '',
-    'References: Black & Scholes (1973), Merton (1976), Heston (1993), Bates (1996)',
-]
-add_bullet_slide(slide, 0.8, 1.3, 11.5, 5.5, bullets_motivation, font_size=16, color=BLACK)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 4: Data Overview (with figure)
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 8, 0.6, '2. Data: NIFTY 50 (Jan 2018 – Dec 2024)', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '01_data_overview.png', 0.5, 1.2, width=12.3)
-
-bullets_data = [
-    'Source: Yahoo Finance (^NSEI) via yfinance | Risk-free rate: RBI repo rate ≈ 6.5%',
-    'Empirical return distribution shows negative skewness and excess kurtosis — fat tails that BS ignores',
-]
-add_bullet_slide(slide, 0.8, 6.3, 11, 1.2, bullets_data, font_size=13, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 5: Black-Scholes Theory
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 8, 0.6, '3. Black-Scholes Model — Theory', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, 'eq_bs_sde.png', 0.8, 1.2, width=6.0)
-add_image_safe(slide, 'eq_ito_lemma.png', 0.8, 2.3, width=6.0)
-add_image_safe(slide, 'eq_bs_solution.png', 0.8, 3.4, width=6.5)
-add_image_safe(slide, 'eq_bs_logret.png', 0.8, 4.6, width=6.5)
-add_bullet_slide(
-    slide,
-    7.0,
-    1.4,
-    5.5,
-    4.8,
-    [
-        'GBM SDE → log‑price SDE via Itô’s lemma.',
-        'Solution gives log‑normal terminal distribution; daily log‑returns Gaussian with mean (μ−σ²/2)Δt.',
-        'These expressions feed directly into the MLE and Monte Carlo estimator.',
-        '[BS73] Black & Scholes (1973), [Aït‑Sa02] Aït‑Sahalia (2002).',
-    ],
-    font_size=14,
-    color=BLACK,
-)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 6: Black-Scholes MLE
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '3. Black-Scholes — Maximum Likelihood Estimation', font_size=30, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, 'eq_bs_loglik.png', 0.7, 1.4, width=6.7)
-add_image_safe(slide, 'eq_bs_mle_solution.png', 0.7, 2.8, width=6.7)
-add_image_safe(slide, 'eq_bs_riskneutral.png', 0.7, 4.0, width=6.0)
-add_bullet_slide(
-    slide,
-    7.2,
-    1.5,
-    5.5,
-    4.7,
-    [
-        'Under discretely observed GBM, log‑returns are i.i.d. Gaussian ⇒ closed‑form MLE for (μ,σ).',
-        'We still use numerical optimisation (Nelder–Mead) to match the framework used later for MJD.',
-        'Risk‑neutral drift replaces μ by r_f, but the volatility estimate σ̂_MLE is carried into pricing.',
-        'This slide is where you can explicitly mention numerical values of μ̂ and σ̂ from the code output.',
-    ],
-    font_size=14,
-    color=BLACK,
-)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 7: Merton JD — SDE & Log-Return Derivation
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '4. Merton Jump-Diffusion — SDE & Log-Return', font_size=30, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, 'eq_mjd_sde.png', 0.7, 1.3, width=6.7)
-add_image_safe(slide, 'eq_mjd_jumps.png', 0.7, 2.4, width=6.7)
-add_image_safe(slide, 'eq_mjd_ito.png', 0.7, 3.5, width=6.7)
-add_image_safe(slide, 'eq_mjd_conditional.png', 0.7, 4.7, width=6.9)
-add_bullet_slide(
-    slide,
-    7.1,
-    1.5,
-    5.4,
-    4.7,
-    [
-        'Jump term S(t−)(e^J − 1)dN(t) superimposes compound Poisson jumps on GBM.',
-        'Applying Itô for jump–diffusions gives d(ln S) with an extra J dN(t) term.',
-        'Conditioning on N=k jumps → Gaussian with shifted mean/variance;',
-        'marginalising over k gives a Poisson‑weighted Gaussian mixture.',
-        '[Me76] Merton (1976), [CT04] Cont & Tankov (2004).',
-    ],
-    font_size=14,
-    color=BLACK,
-)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 8: Merton JD — Likelihood & Variance
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '4. Merton Jump-Diffusion — Likelihood & Moments', font_size=30, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, 'eq_mjd_density.png', 0.7, 1.4, width=6.9)
-add_image_safe(slide, 'eq_mjd_loglik.png', 0.7, 2.8, width=6.9)
-add_image_safe(slide, 'eq_mjd_variance.png', 0.7, 4.0, width=6.0)
-add_image_safe(slide, 'eq_mjd_kurtosis.png', 0.7, 4.9, width=6.2)
-add_bullet_slide(
-    slide,
-    7.1,
-    1.5,
-    5.4,
-    4.7,
-    [
-        'Log‑likelihood is a sum of log Gaussian‑mixture densities evaluated at NIFTY log‑returns.',
-        'We maximise ℓ(θ) numerically (L‑BFGS‑B) over θ = (μ, σ, λ, μ_J, σ_J).',
-        'Variance decomposition highlights the role of λ(μ_J²+σ_J²) term in generating fat tails.',
-        'Closed‑form excess kurtosis shows MJD can match empirical kurtosis where BS cannot.',
-    ],
-    font_size=14,
-    color=BLACK,
-)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 9: GBM vs MJD Paths (1‑year horizon)
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '4. GBM vs MJD — Sample Price Paths', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '03_gbm_vs_mjd_paths.png', 0.3, 1.2, width=12.5)
-
-path_text = [
-    'Top row: GBM paths are smooth; MJD paths show red vertical lines and dots at jump times.',
-    'Bottom‑left: single‑path decomposition — diffusion only vs diffusion+jumps; arrows show discrete jumps.',
-    'Bottom‑right: histogram of jump sizes J ~ N(μ_J, σ_J²); most jumps are small but frequent (λ≈23/year).',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, path_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 9: Tail Behavior
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. Tail Behavior — BS vs MJD vs Empirical', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '04_tail_behavior_comparison.png', 0.3, 1.2, width=12.5)
-
-tail_text = [
-    'MJD\'s Gaussian mixture captures fat tails; BS (pure Gaussian) dramatically underestimates extreme returns.',
-    'Excess kurtosis: BS = 0 (by definition), MJD = 3λ(μ_J² + σ_J²)² / σ⁴ > 0, Empirical NIFTY >> 0',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, tail_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 10: QQ Plots
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. QQ Plots — Quantile Diagnostic', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '05_qq_plots.png', 0.3, 1.2, width=12.5)
-
-qq_text = [
-    'QQ vs Normal: heavy-tailed departure from 45° line at extremes → BS misfit.',
-    'QQ vs MJD: better alignment in tails → MJD captures empirical quantile structure of NIFTY 50.',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, qq_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 11: Statistical Model Selection
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '6. Statistical Model Selection', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '06_model_comparison_criteria.png', 0.3, 1.2, width=12.5)
-
-stat_text = [
-    'Likelihood Ratio Test:  LRT = 2[ℓ(MJD) − ℓ(BS)] ~ χ²(3) under H₀: λ=0',
-    'AIC = 2k − 2ℓ,  BIC = k·ln(n) − 2ℓ  — penalize complexity; MJD overcomes penalty',
-    '[Aït-Ja07] Aït-Sahalia & Jacod (2007). Annals of Statistics, 35(1), 355-392.',
-]
-add_bullet_slide(slide, 0.8, 5.8, 11.5, 1.5, stat_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 12: Implied Volatility Smile
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. Implied Volatility Smile', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '07_implied_volatility_smile.png', 0.3, 1.2, width=12.5)
-
-smile_text = [
-    'BS produces flat IV by construction; MJD generates the "smile" / skew observed in NIFTY option markets.',
-    'This is the classical smile inconsistency — documented by Rubinstein (1994) [Ru94].',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, smile_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 13: Parameter Sensitivity
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. MJD Parameter Sensitivity', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '08_parameter_sensitivity_heatmap.png', 1.0, 1.2, width=11)
-
-sens_text = [
-    'Non-linear interaction between λ (jump intensity) and σ_J (jump volatility) — unavailable in BS world.',
-    'Higher λ and σ_J → substantially higher option prices, reflecting crash risk premium.',
-]
-add_bullet_slide(slide, 0.8, 6.3, 11.5, 1, sens_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 14: Monte Carlo Convergence
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. Monte Carlo Convergence', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '09_mc_convergence.png', 0.3, 1.2, width=12.5)
-
-mc_text = [
-    'MC price → closed-form as N→∞, confirming 1/√N convergence rate (CLT).',
-    'Standard error comparison validates implementation correctness [Glasserman (2003)].',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, mc_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 15: Event Analysis
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. Indian Market Event Analysis', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '10_event_analysis.png', 0.3, 1.2, width=12.5)
-
-event_text = [
-    'Key events: IL&FS crisis (Sep 2018), COVID crash (Mar 2020), Russia-Ukraine (Feb 2022), Election (Jun 2024)',
-    'BS assigns near-zero probability to such moves; MJD jump parameters capture this crash risk.',
-]
-add_bullet_slide(slide, 0.8, 6.1, 11.5, 1.2, event_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 16: Tail Risk Probability
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. Tail Risk: Crash Probability', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '11_tail_risk_probability.png', 0.3, 1.2, width=12.5)
-
-tail_risk = [
-    'BS vastly underestimates the probability of large daily losses — a critical failure for risk management.',
-    'MJD provides realistic tail probabilities closer to empirical NIFTY returns, essential under SEBI regulations.',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, tail_risk, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 17: VaR Backtesting
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. Value-at-Risk Backtesting', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '12_var_backtesting.png', 0.3, 1.2, width=12.5)
-
-var_text = [
-    '1% VaR breaches under BS Gaussian model exceed expected rate — BS fails Kupiec test.',
-    'Empirical VaR (from historical quantiles, analogous to MJD) stays closer to 1% expected rate.',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, var_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 18: Variance Reduction
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. Variance Reduction Techniques', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '13_variance_reduction.png', 1.5, 1.2, width=10)
-
-vr_text = [
-    'Antithetic variates: pair (Z, −Z) → roughly halves variance for smooth payoffs.',
-    'Control variate: use BS closed-form as control for MJD MC → 30-70% SE reduction near ATM.',
-    '[Gl03] Glasserman, P. (2003). Monte Carlo Methods in Financial Engineering. Springer.',
-]
-add_bullet_slide(slide, 0.8, 5.8, 11.5, 1.5, vr_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 19: Heston Model — End Term Proposal
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '7. End-Term: Heston Stochastic Volatility', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-heston_text = [
-    'Heston (1993) — variance v(t) follows CIR process:',
-    '   dS(t) = r_f S(t) dt + √v(t) S(t) dW_S^Q(t)',
-    '   dv(t) = κ[θ − v(t)] dt + ξ √v(t) dW_v^Q(t)',
-    '   Corr(dW_S, dW_v) = ρ dt    (leverage effect: ρ < 0)',
+    '• This project: compare BS vs Merton Jump-Diffusion option prices on NIFTY 50',
+    '  → calibrate both models to historical data, then price European calls & puts',
+    '  → quantify how much BS underprices crash protection',
     '',
-    'Parameters: κ (mean-reversion), θ (long-run var), ξ (vol-of-vol), ρ (correlation), v₀',
-    'Feller condition: 2κθ > ξ² ensures v(t) > 0',
+    '• References: Black & Scholes (1973), Merton (1976)',
+],15)
+
+# ── Slide 4: Calibration Data ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'2. Calibration Data: NIFTY 50 (2018–2024)',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'01_calibration_data.png',.3,1.2,width=12.3)
+bl(s,.8,6.3,11,1.2,[
+    'NIFTY daily returns used to estimate model parameters via MLE. Left-tail zoom shows fat tails → BS underprices OTM puts.',
+    'Source: Yahoo Finance (^NSEI). Risk-free rate: RBI repo ≈ 6.5%',
+],13,GY)
+
+# ── Slide 5: BS SDE & Itô ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'3. Black–Scholes: GBM SDE & Log-Price',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'eq_bs_sde.png',.7,1.2,width=6)
+img(s,'eq_ito_lemma.png',.7,2.3,width=6)
+img(s,'eq_bs_solution.png',.7,3.4,width=6.5)
+img(s,'eq_bs_logret.png',.7,4.6,width=6.5)
+bl(s,7,1.4,5.5,5,[
+    'GBM SDE → Itô\'s lemma gives the log-price SDE.',
+    'Integrating gives the log-normal terminal distribution S(T).',
+    'Daily log-returns are i.i.d. Gaussian — this is the model we fit via MLE.',
+    'The estimated σ̂ is then plugged into the BS option pricing formula.',
+],14)
+
+# ── Slide 6: BS MLE ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'3. Black–Scholes: Maximum Likelihood Estimation',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'eq_bs_loglik.png',.7,1.4,width=6.7)
+img(s,'eq_bs_mle_solution.png',.7,2.8,width=6.7)
+bl(s,7.2,1.5,5.5,3,[
+    'MLE on n daily NIFTY returns. Closed-form for σ̂² and μ̂ exists for GBM.',
+    'We use numerical optimisation (Nelder-Mead) for consistency with MJD estimation.',
+    'The key output for option pricing is σ̂ ≈ 17.8% (annualised).',
+],14)
+img(s,'eq_bs_riskneutral.png',.7,4.2,width=6)
+bl(s,7.2,4.2,5.5,2,[
+    'For pricing: switch to risk-neutral measure Q (Girsanov). Drift becomes r_f, but σ stays the same.',
+],14)
+
+# ── Slide 7: BS Option Pricing Formula ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'3. Black–Scholes: Closed-Form Option Prices',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'eq_bs_call.png',.7,1.4,width=6)
+img(s,'eq_bs_d1d2.png',.7,2.5,width=6.5)
+img(s,'eq_bs_mc.png',.7,3.7,width=6.5)
+bl(s,7.2,1.4,5.5,4,[
+    'The celebrated BS formula gives exact European call (and put via put-call parity).',
+    'd₁ and d₂ encode moneyness, time to expiry, and volatility.',
+    'Monte Carlo estimator validates the closed-form: simulate N paths under Q, average discounted payoffs.',
+    'SE shrinks as 1/√N (CLT). [Glasserman, 2003]',
+],14)
+bl(s,.7,5,11,1.5,[
+    'Key limitation: σ is CONSTANT across all strikes and maturities → flat implied volatility surface.',
+    '→ In reality, NIFTY options trade with a pronounced volatility smile/skew. BS cannot reproduce this.',
+],14,RGBColor(0xAA,0x00,0x00))
+
+# ── Slide 8: MJD SDE ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'4. Merton Jump-Diffusion: SDE & Log-Return',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'eq_mjd_sde.png',.7,1.3,width=6.7)
+img(s,'eq_mjd_jumps.png',.7,2.4,width=6.7)
+img(s,'eq_mjd_ito.png',.7,3.5,width=6.7)
+img(s,'eq_mjd_conditional.png',.7,4.7,width=6.9)
+bl(s,7.1,1.5,5.4,4.7,[
+    'Superimposes compound Poisson jumps on GBM — captures sudden dislocations.',
+    'Itô for jump-diffusions: extra J dN(t) term in log-price.',
+    'Conditional on k jumps: Gaussian with shifted mean & inflated variance.',
+    'This directly explains why MJD produces different option prices from BS.',
+    '[Me76] Merton (1976), [CT04] Cont & Tankov (2004).',
+],14)
+
+# ── Slide 9: MJD Likelihood & Moments ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'4. MJD: Likelihood & Excess Kurtosis',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'eq_mjd_density.png',.7,1.4,width=6.9)
+img(s,'eq_mjd_loglik.png',.7,2.8,width=6.9)
+img(s,'eq_mjd_variance.png',.7,4,width=6)
+img(s,'eq_mjd_kurtosis.png',.7,4.9,width=6.2)
+bl(s,7.1,1.5,5.4,4.7,[
+    'Log-likelihood = sum of log Gaussian-mixture densities.',
+    'Maximised numerically (L-BFGS-B) over θ = (μ,σ,λ,μ_J,σ_J).',
+    'Variance decomposition: jump component λ(μ_J²+σ_J²) adds kurtosis.',
+    'Excess kurtosis > 0 → fatter tails → higher OTM option prices.',
+    'This is the precise mechanism by which MJD prices puts higher than BS.',
+],14)
+
+# ── Slide 10: ATM Option Prices ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. ATM Option Prices: BS vs MJD',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'02_atm_option_prices.png',.3,1.2,width=12.5)
+bl(s,.8,6,11.5,1.2,[
+    'Left: ATM call & put prices. Centre: terminal S(T) distributions — MJD has heavier tails.',
+    'Right: put payoff distribution — MJD assigns more weight to large payoffs (crash scenarios).',
+],13,GY)
+
+# ── Slide 11: Options across strikes ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. Option Prices Across Strikes',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'03_option_prices_across_strikes.png',.3,1.2,width=12.5)
+bl(s,.8,6.2,11.5,1,[
+    'MJD puts are consistently more expensive than BS puts, especially for OTM puts (K/S₀ < 1).',
+    'Bottom-right: percentage difference shows BS can underprice OTM puts by 20-100%+.',
+],13,GY)
+
+# ── Slide 12: IV Smile ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. Implied Volatility Smile',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'04_iv_smile.png',.3,1.2,width=12.5)
+bl(s,.8,6,11.5,1.2,[
+    'BS-implied volatility backed out from MJD option prices. MJD produces the smile that market data shows.',
+    'BS can only produce a flat line — the "smile inconsistency" [Rubinstein, 1994].',
+],13,GY)
+
+# ── Slide 13: OTM Puts ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. OTM Put Pricing — Where BS Fails Most',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'06_otm_put_pricing.png',.3,1.2,width=12.5)
+bl(s,.8,6,11.5,1.2,[
+    'Deep OTM puts: MJD price can be 2–5× the BS price. This is crash protection that BS undervalues.',
+    'For a NIFTY options trader, using BS means systematically selling insurance too cheaply.',
+],13,GY)
+
+# ── Slide 14: Option term structure ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. Option Prices Across Maturities',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'05_option_term_structure.png',.3,1.2,width=12.5)
+bl(s,.8,6,11.5,1.2,[
+    'MJD puts are consistently more expensive than BS across all maturities — the jump risk premium persists.',
+    'Difference is largest for shorter maturities where individual jumps have more impact.',
+],13,GY)
+
+# ── Slide 15: Sensitivity heatmap ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. Option Price Sensitivity to Jump Parameters',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'07_option_sensitivity_heatmap.png',.3,1.2,width=12.5)
+bl(s,.8,6.2,11.5,1,[
+    'Non-linear interaction between λ and σ_J on option prices. Higher jump intensity and vol → higher option prices.',
+],13,GY)
+
+# ── Slide 16: MC Convergence ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. Monte Carlo Convergence (Option Prices)',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'08_mc_convergence_options.png',.3,1.2,width=12.5)
+bl(s,.8,6,11.5,1.2,[
+    'BS MC converges to closed-form; MJD converges to its own value. SE ∝ 1/√N confirmed.',
+    'Validates both implementations and the theoretical pricing framework [Glasserman, 2003].',
+],13,GY)
+
+# ── Slide 17: Event option pricing ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. Option Pricing at Indian Market Crises',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'11_event_option_pricing.png',.3,1.2,width=12.5)
+bl(s,.8,6.2,11.5,1,[
+    'At each crisis: BS put price vs MJD put price vs realised payoff. BS consistently underprices — positive error = underpricing.',
+],13,GY)
+
+# ── Slide 18: Variance reduction ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'5. Variance Reduction for Option Pricing MC',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'09_variance_reduction_options.png',1.5,1.2,width=10)
+bl(s,.8,5.5,11.5,1.5,[
+    'Antithetic variates and control variates reduce MC standard error for option prices.',
+    'Control variate (using BS closed-form as control for MJD MC) gives ~50% SE reduction.',
+    '[Glasserman, 2003].',
+],14)
+
+# ── Slide 19: Model Selection ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'6. Statistical Model Selection',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'10_model_selection.png',.3,1.2,width=12.5)
+img(s,'eq_lrt.png',.7,5.5,width=6)
+img(s,'eq_aic_bic.png',7,5.5,width=5.5)
+bl(s,.8,6.5,11.5,.8,[
+    'LRT p-value ≈ 0 → jumps are overwhelmingly significant. AIC & BIC both prefer MJD despite penalty for 3 extra parameters.',
+],13,GY)
+
+# ── Slide 20: GBM vs MJD paths ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'Underlying Paths: How Jumps Affect S(T)',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'12_gbm_vs_mjd_paths.png',.3,1.2,width=12.5)
+bl(s,.8,6,11.5,1.2,[
+    'GBM paths are smooth; MJD paths have jumps (red dots). Jump events change the terminal distribution S(T),',
+    'which is what determines option payoffs max(S(T)−K, 0) or max(K−S(T), 0).',
+],13,GY)
+
+# ── Slide 21: QQ ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'Return Diagnostics (Motivation for MJD)',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'13_qq_plots.png',.3,1.2,width=12.5)
+bl(s,.8,6,11.5,1.2,[
+    'QQ vs Normal: heavy-tailed departures → BS option mispricing. QQ vs MJD: better tail fit.',
+],13,GY)
+
+# ── Slide 22: Summary ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'Summary: BS vs MJD Option Pricing Comparison',30,DB,True); bar(s,.8,1,.3,.04)
+img(s,'14_summary_dashboard.png',.3,1.2,width=12.5)
+
+# ── Slide 23: Comparison Table ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'Model Comparison for Option Pricing',30,DB,True); bar(s,.8,1,.3,.04)
+td=[['Feature','Black-Scholes','Merton JD'],
+    ['Underlying SDE','GBM (continuous)','GBM + Poisson jumps'],
+    ['Parameters','2 (μ, σ)','5 (μ, σ, λ, μ_J, σ_J)'],
+    ['Return distribution','Gaussian','Gaussian mixture'],
+    ['Option pricing','Closed-form (BS formula)','Monte Carlo required'],
+    ['Implied volatility','Flat (constant σ)','Smile / skew'],
+    ['OTM put pricing','Systematically low','More realistic'],
+    ['Captures crashes','No','Yes (jump component)'],
+    ['Calibration','Analytic MLE','Numerical MLE (L-BFGS-B)']]
+tbl=s.shapes.add_table(len(td),3,Inches(.5),Inches(1.3),Inches(12.3),Inches(4.5)).table
+for ci in range(3): tbl.columns[ci].width=Inches(12.3/3)
+for ri,row in enumerate(td):
+    for ci,cell_text in enumerate(row):
+        cell=tbl.cell(ri,ci); cell.text=cell_text
+        for p in cell.text_frame.paragraphs:
+            p.font.size=Pt(13); p.font.name='Calibri'; p.alignment=PP_ALIGN.CENTER
+            p.font.bold=(ri==0); p.font.color.rgb=WH if ri==0 else BK
+        if ri==0: cell.fill.solid(); cell.fill.fore_color.rgb=DB
+        elif ri%2==0: cell.fill.solid(); cell.fill.fore_color.rgb=RGBColor(0xE8,0xEC,0xF1)
+
+# ── Slide 24: Future Work ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'7. Future Work & Connection to Supervisor Research',30,DB,True); bar(s,.8,1,.3,.04)
+bl(s,.8,1.3,11.5,5.5,[
+    'End-term: extend option pricing comparison to stochastic volatility models:',
     '',
-    'Produces full implied volatility smile & term structure',
-    'Semi-analytic pricing via Fourier inversion [Carr-Madan (1999)]',
+    '  • Heston (1993): variance v(t) follows CIR process → produces full IV surface',
+    '  • Bates (1996): Heston + jumps → 8 parameters, most flexible model',
+    '  • Calibrate to live NIFTY option chain prices (not just returns)',
     '',
-    '[He93] Heston, S.L. (1993). Review of Financial Studies, 6(2), 327-343.',
-]
-add_bullet_slide(slide, 0.8, 1.2, 5.5, 6, heston_text, font_size=14, color=BLACK)
-add_image_safe(slide, '14_heston_paths.png', 6.5, 1.2, width=6.5)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 20: Heston IV Surface
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '7. Heston Implied Volatility Surface', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '15_heston_iv_surface.png', 0.3, 1.2, width=12.5)
-
-iv_surface_text = [
-    'Stochastic volatility produces realistic IV smile & term structure — flat BS surface is a special case.',
-    'Negative ρ (leverage effect) creates the asymmetric skew observed in NIFTY index options.',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, iv_surface_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 21: Connection to Supervisor's Research
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '8. Connection to Supervisor\'s Research', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-supervisor_text = [
-    'The CIR variance process √v(t) has non-globally-Lipschitz coefficients.',
-    'Standard Euler-Maruyama can produce negative variance — numerical instability.',
+    'Numerical challenge: CIR process has non-Lipschitz √v(t) coefficient',
+    '  → Standard Euler-Maruyama can give negative variance',
     '',
     'Prof. Chaman Kumar\'s research directly addresses this:',
+    '  • Tamed Euler for Lévy SDEs [DKS16, SIAM J. Numer. Anal., 54(3)]',
+    '  • Tamed Milstein for super-linear coefficients [KS17, EJP 22]',
+    '  • Milstein for Markovian switching [KK20, J. Comp. Appl. Math. 377]',
+    '  • McKean-Vlasov equations [KNRS20] — future scope: mean-field option markets',
+],15)
+
+# ── Slide 25: References ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,10,.6,'References',30,DB,True); bar(s,.8,1,.3,.04)
+bl(s,.8,1.2,11.5,6,[
+    'Option Pricing Models:',
+    '  [BS73] Black & Scholes (1973). J. Political Economy, 81(3), 637–654.',
+    '  [Me76] Merton (1976). J. Financial Economics, 3(1-2), 125–144.',
+    '  [He93] Heston (1993). Review of Financial Studies, 6(2), 327–343.',
+    '  [Ba96] Bates (1996). Review of Financial Studies, 9(1), 69–107.',
     '',
-    '  • Tamed Euler scheme for Lévy-driven SDEs',
-    '     [DKS16] Dareiotis, Kumar & Sabanis (2016). SIAM J. Numer. Anal., 54(3). IF: 2.712',
+    'Statistical & Computational Methods:',
+    '  [Aït-Sa02] Aït-Sahalia (2002). Econometrica, 70(1), 223–262.',
+    '  [CT04] Cont & Tankov (2004). Financial Modelling with Jump Processes.',
+    '  [Gl03] Glasserman (2003). MC Methods in Financial Engineering.',
+    '  [Ru94] Rubinstein (1994). J. Finance, 49(3), 771–818.',
     '',
-    '  • Explicit tamed Milstein for super-linear diffusion coefficients',
-    '     [KS17a] Kumar & Sabanis (2017). Electronic J. Probability, 22, 1-19. IF: 1.123',
-    '',
-    '  • Milstein scheme for Lévy SDEs with super-linear coefficients',
-    '     [K20] Kumar (2020). DCDS-B. DOI: 10.3934/dcdsb.2020167',
-    '',
-    '  • Tamed Milstein for SDEs with Markovian switching',
-    '     [KK20] Kumar & Kumar (2020). J. Comp. Appl. Math., 377. IF: 2.037',
-    '',
-    '  • McKean-Vlasov equations — future scope for mean-field option markets',
-    '     [KNRS20] Kumar, Neelima, Reisinger & Stockinger (2020). arXiv:2006.00463',
-]
-add_bullet_slide(slide, 0.8, 1.2, 11.5, 6, supervisor_text, font_size=14, color=BLACK)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 22: Tamed Euler — Numerical Results
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '8. Tamed Euler — Numerical Comparison', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '16_tamed_euler_convergence.png', 0.3, 1.2, width=12.5)
-
-tamed_text = [
-    'Standard Euler produces negative variance excursions; Tamed Euler (DKS16) maintains positivity.',
-    'Convergence rate: slope ≈ 0.5 (Euler) confirmed — matches theoretical rates from cited papers.',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, tamed_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 23: Full Model Comparison
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, '5. Option Prices — All Models Compared', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '17_option_prices_all_models.png', 0.3, 1.2, width=12.5)
-
-all_models_text = [
-    'MJD prices diverge from BS for OTM options (fat tails); Heston captures smile-driven deviation.',
-    'Bates (Heston + Jumps) will combine both effects — the most flexible model in this study.',
-]
-add_bullet_slide(slide, 0.8, 6.0, 11.5, 1.2, all_models_text, font_size=14, color=RGBColor(0x44, 0x44, 0x44))
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 24: Summary Dashboard
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, 'Summary — Comprehensive Comparison', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-add_image_safe(slide, '18_summary_comparison.png', 0.3, 1.2, width=12.5)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 25: Model Comparison Table
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, 'Model Comparison Summary', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-table_data = [
-    ['Feature', 'Black-Scholes', 'Merton JD', 'Heston', 'Bates'],
-    ['SDE type', 'GBM', 'GBM + Poisson', 'GBM + CIR vol', 'GBM + CIR + Jumps'],
-    ['Parameters', '2', '5', '5', '8'],
-    ['Return dist.', 'Gaussian', 'Mixture', 'Non-Gaussian', 'Non-Gaussian'],
-    ['Closed-form', 'Yes', 'Series approx.', 'Fourier', 'Fourier'],
-    ['Vol smile', 'No (flat IV)', 'Partial', 'Full smile', 'Full smile'],
-    ['Jumps', 'No', 'Yes', 'No', 'Yes'],
-    ['Extreme events', 'Poor', 'Good', 'Moderate', 'Best'],
-    ['Calibration', 'Analytic MLE', 'Numerical MLE', 'Option chain', 'Option chain'],
-]
-
-rows, cols = len(table_data), len(table_data[0])
-table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1.3), Inches(12.3), Inches(5)).table
-
-for col_idx in range(cols):
-    table.columns[col_idx].width = Inches(12.3 / cols)
-
-for row_idx in range(rows):
-    for col_idx in range(cols):
-        cell = table.cell(row_idx, col_idx)
-        cell.text = table_data[row_idx][col_idx]
-        for paragraph in cell.text_frame.paragraphs:
-            paragraph.font.size = Pt(13)
-            paragraph.font.name = 'Calibri'
-            paragraph.alignment = PP_ALIGN.CENTER
-            if row_idx == 0:
-                paragraph.font.bold = True
-                paragraph.font.color.rgb = WHITE
-            else:
-                paragraph.font.color.rgb = BLACK
-        
-        if row_idx == 0:
-            cell.fill.solid()
-            cell.fill.fore_color.rgb = DARK_BLUE
-        elif row_idx % 2 == 0:
-            cell.fill.solid()
-            cell.fill.fore_color.rgb = RGBColor(0xE8, 0xEC, 0xF1)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 26: End-Term Plan
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, 'End-Term Evaluation Plan', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-endterm_text = [
-    'Planned Deliverables:',
-    '',
-    '1. Full Heston calibration to NIFTY option chain (3 maturities × 7 strikes)',
-    '',
-    '2. Bates model (Heston + Jumps) — 8-parameter calibration',
-    '',
-    '3. Comprehensive 4-model comparison:',
-    '     • Option pricing RMSE on market prices',
-    '     • Implied volatility smile fit across strikes & maturities',
-    '     • 1% VaR backtesting on 2023-24 NIFTY data',
-    '',
-    '4. Sensitivity analysis: Greeks (Δ, Γ, V) under each model',
-    '',
-    '5. Statistical model selection: LRT (nested), AIC/BIC (non-nested)',
-    '',
-    '6. Numerical methods: Tamed Euler vs Standard Euler convergence',
-    '     for CIR process — connecting to Prof. Kumar\'s research',
-    '',
-    '7. Future scope: McKean-Vlasov / mean-field game formulation',
-    '     for multi-agent option markets [KNRS20]',
-]
-add_bullet_slide(slide, 0.8, 1.3, 11.5, 6, endterm_text, font_size=15, color=BLACK)
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 27: References
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, WHITE)
-add_accent_bar(slide, 0, 0, 13.333, 0.08, DARK_BLUE)
-add_textbox(slide, 0.8, 0.3, 10, 0.6, 'References', font_size=32, color=DARK_BLUE, bold=True)
-add_accent_bar(slide, 0.8, 1.0, 3, 0.04, ORANGE)
-
-refs = [
-    'Foundational Models:',
-    '  [BS73] Black & Scholes (1973). J. Political Economy, 81(3), 637-654.',
-    '  [Me76] Merton (1976). J. Financial Economics, 3(1-2), 125-144.',
-    '  [He93] Heston (1993). Review of Financial Studies, 6(2), 327-343.',
-    '  [Ba96] Bates (1996). Review of Financial Studies, 9(1), 69-107.',
-    '',
-    'Statistical Methods:',
-    '  [Aït-Sa02] Aït-Sahalia (2002). Econometrica, 70(1), 223-262.',
-    '  [Aït-Ja07] Aït-Sahalia & Jacod (2007). Annals of Statistics, 35(1), 355-392.',
-    '  [CT04] Cont & Tankov (2004). Financial Modelling with Jump Processes. CRC.',
-    '  [Gl03] Glasserman (2003). MC Methods in Financial Engineering. Springer.',
-    '',
-    'Supervisor\'s Research (Numerical SDE Methods):',
+    'Supervisor\'s Research:',
     '  [DKS16] Dareiotis, Kumar & Sabanis (2016). SIAM J. Numer. Anal., 54(3).',
-    '  [KS17] Kumar & Sabanis (2017). Electr. J. Probability, 22, 1-19.',
-    '  [KK20] Kumar & Kumar (2020). J. Comp. Appl. Math., 377, 112917.',
-    '  [K20] Kumar (2020). DCDS-B. DOI: 10.3934/dcdsb.2020167.',
+    '  [KS17] Kumar & Sabanis (2017). Electr. J. Probability, 22.',
+    '  [KK20] Kumar & Kumar (2020). J. Comp. Appl. Math., 377.',
     '  [KNRS20] Kumar, Neelima, Reisinger & Stockinger (2020). arXiv:2006.00463.',
-]
-add_bullet_slide(slide, 0.8, 1.2, 11.5, 6, refs, font_size=12, color=BLACK)
+],12)
 
+# ── Slide 26: Thank You ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s)
+bar(s,0,0,13.333,.15); bar(s,0,7.35,13.333,.15)
+tx(s,1.5,2,10,1,'Thank You',48,WH,True,PP_ALIGN.CENTER)
+bar(s,5,3.2,3,.04)
+tx(s,1.5,3.5,10,.6,'Option Pricing: Black-Scholes vs Merton Jump-Diffusion\non the Indian Stock Market (NIFTY 50)',20,RGBColor(0xAA,0xCC,0xEE),False,PP_ALIGN.CENTER)
+tx(s,1.5,4.5,10,.4,'Prof. Chaman Kumar | IIT Roorkee',18,WH,True,PP_ALIGN.CENTER)
+tx(s,1.5,5.8,10,.4,'Questions?',24,GD,True,PP_ALIGN.CENTER)
 
-# ═══════════════════════════════════════════════════════════════
-# SLIDE 28: Thank You
-# ═══════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, DARK_BLUE)
-add_accent_bar(slide, 0, 0, 13.333, 0.15, ORANGE)
-add_accent_bar(slide, 0, 7.35, 13.333, 0.15, ORANGE)
-
-add_textbox(slide, 1.5, 2.0, 10, 1,
-            'Thank You',
-            font_size=48, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
-add_accent_bar(slide, 5, 3.2, 3, 0.04, ORANGE)
-add_textbox(slide, 1.5, 3.5, 10, 0.6,
-            'Comparative Study of Stochastic Models for Option Pricing\nin the Indian Stock Market',
-            font_size=20, color=RGBColor(0xAA, 0xCC, 0xEE), alignment=PP_ALIGN.CENTER)
-add_textbox(slide, 1.5, 4.5, 10, 0.4,
-            'Under the supervision of Prof. Chaman Kumar',
-            font_size=18, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
-add_textbox(slide, 1.5, 5.2, 10, 0.4,
-            'Department of Mathematics, IIT Roorkee',
-            font_size=14, color=RGBColor(0x99, 0xBB, 0xDD), alignment=PP_ALIGN.CENTER)
-add_textbox(slide, 1.5, 5.8, 10, 0.4,
-            'Questions?',
-            font_size=24, color=ACCENT_GOLD, bold=True, alignment=PP_ALIGN.CENTER)
-
-
-prs.save(OUTPUT_FILE)
-print(f'Presentation saved to: {OUTPUT_FILE}')
-print(f'Total slides: {len(prs.slides)}')
+prs.save(OUT)
+print(f'Saved: {OUT} ({len(prs.slides)} slides)')

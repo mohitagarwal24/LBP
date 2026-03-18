@@ -1,347 +1,514 @@
 ================================================================================
-  MATHEMATICAL EXPLANATION — STOCHASTIC OPTION PRICING PROJECT
-  (Black–Scholes vs Merton Jump–Diffusion on NIFTY 50)
+STOCHASTIC OPTION PRICING: IN-DEPTH MATHEMATICAL EXPLANATION
+Slide-by-Slide Reference for Presenter
+Focus: European Option Pricing on NIFTY 50 (BS vs MJD)
 ================================================================================
 
-This file gives a deeper, equation‑level explanation of the material that
-appears on each slide of the updated presentation
-`Stochastic_Option_Pricing_Presentation_v2.pptx`.  Use it as a reference
-while rehearsing; every important formula is here with short comments and
-pointers to the literature.
-
-I only cover Black–Scholes (BS) and Merton Jump–Diffusion (MJD), plus model
-selection. Heston/Bates are mentioned only in a brief future‑work note.
-
-Notation:
-  S(t)      – underlying index level (NIFTY 50)
-  μ, σ      – physical‑measure drift and volatility
-  r_f       – risk‑free rate (RBI repo, continuous compounding)
-  W(t)      – standard Brownian motion
-  N(t)      – Poisson process with intensity λ (jumps/year)
-  J         – log jump size,  J ~ N(μ_J, σ_J²)
-  Δt        – time step for daily data = 1/252
-  r_t       – log‑return ln(S_t / S_{t-1})
-
---------------------------------------------------------------------------------
-1. Black–Scholes model
---------------------------------------------------------------------------------
-
-1.1 GBM SDE and log‑price solution
-----------------------------------
-Assume under the physical measure P:
-
-  dS(t) = μ S(t) dt + σ S(t) dW(t)                                       (1)
-
-Apply Itô’s Lemma to f(S) = ln S:
-
-  df = f_S dS + ½ f_SS (dS)²
-     = (1/S) dS − ½ (1/S²) (σ² S² dt)                                   (2)
-
-Substituting dS from (1):
-
-  d(ln S(t)) = (μ − ½ σ²) dt + σ dW(t)                                  (3)
-
-Integrating from 0 to T:
-
-  ln S(T) = ln S(0) + (μ − ½ σ²) T + σ W(T)
-  ⇒ S(T)  = S(0) · exp{ (μ − ½ σ²)T + σ√T Z },   Z ~ N(0,1)             (4)
-
-This is what you show on the “BS theory” slide; it explains why S(T) is
-log‑normal and why log‑returns are Gaussian.
-
-
-1.2 Daily log‑returns
----------------------
-Let Δt = 1/252 and consider S_t = S(tΔt). From (3),
-
-  r_t := ln(S_t / S_{t-1}) = (μ − ½ σ²)Δt + σ √Δt Z_t,   Z_t ~ N(0,1)   (5)
-
-Hence
-
-  r_t ~ N( (μ − ½ σ²)Δt, σ² Δt ).
-
-This is the likelihood model used for MLE on NIFTY log‑returns.
-
-
-1.3 MLE for (μ, σ)
-------------------
-Given returns r_1,…,r_n, independent N(m, v) with
-  m = (μ − ½ σ²)Δt,  v = σ² Δt,
-the log‑likelihood is
-
-  ℓ(μ, σ)
-    = − (n/2) ln(2π) − (n/2) ln v
-      − ∑_{i=1}^n (r_i − m)² / (2 v).                                   (6)
-
-A convenient reparameterisation is
-  μ̃ := μ − ½ σ² ⇒ m = μ̃ Δt.
-
-Taking derivatives and solving gives the closed‑form MLE:
-
-  σ̂² = (1/(n Δt)) ∑_{i=1}^n (r_i − r̄)²,
-  μ̂  = r̄ / Δt + ½ σ̂²,                                                 (7)
-
-where r̄ is the sample mean of returns.  In the code we *numerically*
-maximise ℓ(μ,σ) with Nelder–Mead instead of plugging in (7) directly, so
-that the optimisation framework can be reused for MJD.
-
-Key points to say orally:
-  • For GBM the MLE has a closed form, but we still use numerical
-    optimisation to keep the pipeline consistent.
-  • The estimate σ̂ from NIFTY data is about 17–18% annualised.
-
-Reference: Aït‑Sahalia (2002), Econometrica 70(1), for MLE of diffusions.
-
-
-1.4 Risk‑neutral measure and pricing
-------------------------------------
-Under the risk‑neutral measure Q, the drift becomes r_f:
-
-  dS(t) = r_f S(t) dt + σ S(t) dW^Q(t).                                 (8)
-
-Arbitrage‑free price of a derivative with payoff Φ(S(T)):
-
-  V(0) = e^{−r_f T} · E^Q[ Φ(S(T)) ].                                   (9)
-
-For a European call Φ(S(T)) = max(S(T) − K, 0), explicit integration
-gives Black–Scholes:
-
-  C = S_0 Φ(d₁) − K e^{−r_f T} Φ(d₂),                                   (10)
-  d₁ = [ln(S_0/K) + (r_f + ½ σ²)T] / (σ√T),
-  d₂ = d₁ − σ√T.
-
-You can always stress that the **same σ̂_MLE from historical data** is
-plugged into this formula.
-
-
-1.5 Monte Carlo estimator
--------------------------
-Discretise (8) on n steps of size Δt = T/n:
-
-  ln S_{k+1} = ln S_k + (r_f − ½ σ²)Δt + σ√Δt Z_k.
-
-Simulate N paths, compute discounted payoffs:
-
-  Ĉ_MC = e^{−r_f T} (1/N) ∑ max(S_T^{(i)} − K, 0).                       (11)
-
-By the CLT the standard error shrinks ∝ 1/√N. The convergence plot in the
-slides shows Ĉ_MC → C_BS.
-
-Reference: Glasserman (2003), *Monte Carlo Methods in Financial
-Engineering*.
-
---------------------------------------------------------------------------------
-2. Merton Jump–Diffusion model
---------------------------------------------------------------------------------
-
-2.1 SDE and jump structure
---------------------------
-Physical‑measure SDE:
-
-  dS(t) = μ S(t) dt + σ S(t) dW(t) + S(t−)(e^J − 1) dN(t),               (12)
-
-where:
-  • N(t) is a Poisson process with intensity λ (expected jumps per year),
-  • J is the log jump size,  J ~ N(μ_J, σ_J²), i.i.d. across jumps,
-  • W, N, and J’s are mutually independent.
-
-Intuition:
-  – GBM handles “small, continuous” moves;
-  – Poisson jumps handle sudden dislocations (crashes, gap moves).
-
-
-2.2 Log‑price dynamics via Itô for jump‑diffusions
---------------------------------------------------
-For f(S) = ln S, Itô’s formula for jump‑diffusions gives
-
-  d(ln S(t))
-    = (μ − ½ σ²) dt + σ dW(t) + J dN(t).                                (13)
-
-Over a small time step Δt with N jumps equal to k, we integrate:
-
-  r := ln(S_{t+Δt} / S_t)
-      = (μ − ½ σ²)Δt + σ√Δt Z + ∑_{j=1}^k J_j.                          (14)
-
-Conditionally on N=k:
-  r | N=k ~ N( (μ − ½ σ²)Δt + k μ_J,   σ² Δt + k σ_J² ).               (15)
-
-
-2.3 Mixture likelihood and unconditional density
-------------------------------------------------
-Unconditional density for r is a Poisson‑weighted mixture of Gaussians:
-
-  f(r)
-    = ∑_{k=0}^∞ P(N=k) · φ(r; m_k, v_k)                                 (16)
-    = ∑_{k=0}^∞ e^{−λΔt}(λΔt)^k/k! · φ(r; m_k, v_k),
-
-where
-  m_k = (μ − ½ σ²)Δt + k μ_J,
-  v_k = σ² Δt + k σ_J²,
-  φ(·;m,v) is the N(m,v) density.
-
-In practice we truncate the sum at k = 15–20; for realistic λ this is
-enough since higher‑k terms have negligible weight.
-
-Given returns r₁,…,r_n, the log‑likelihood is
-
-  ℓ(θ) = ∑_{t=1}^n ln[ ∑_{k=0}^K e^{−λΔt}(λΔt)^k/k! · φ(r_t; m_k, v_k) ],
-                                                                     (17)
-with θ = (μ, σ, λ, μ_J, σ_J).  We maximise ℓ numerically with L‑BFGS‑B
-subject to natural constraints σ>0, λ≥0, σ_J>0.
-
-Key things to mention:
-  • The inner sum is the Gaussian mixture; we evaluate it for **every**
-    daily return in the sample ⇒ computationally heavy.
-  • The likelihood surface is higher‑dimensional, so we need a robust
-    optimiser with bounds (L‑BFGS‑B).
-
-The code uses a fully vectorised implementation to make this feasible.
-
-
-2.4 Moments and fat tails
--------------------------
-Unconditional variance of r:
-
-  Var(r) = σ² Δt + λ Δt (μ_J² + σ_J²).                                  (18)
-
-The second term is the jump contribution: it is zero under BS (λ=0) and
-positive under MJD, giving extra variability and kurtosis.
-
-An analytical expression for excess kurtosis is
-
-  Kurt_excess(MJD)
-    = 3 λ (μ_J² + σ_J²)² / [ σ² + λ(μ_J² + σ_J²) ]².                    (19)
-
-This is the quantity you quote on the “kurtosis table” slide.  For NIFTY
-data, empirical excess kurtosis ≈ 22, BS gives 0 by construction, MJD
-can attain values in the same ball‑park depending on the estimated λ,
-μ_J, σ_J.
-
-
-2.5 Risk‑neutral drift and pricing
-----------------------------------
-Define
-  κ := E[e^J − 1] = exp(μ_J + ½ σ_J²) − 1.                              (20)
-
-Under Q, the compensated SDE is
-
-  dS(t) = r_f S(t) dt + σ S(t) dW^Q(t) + S(t−)(e^J − 1)(dN(t) − λ κ dt),
-                                                                     (21)
-so that E^Q[S(t)] = S(0) e^{r_f t}.  This is the “no‑arbitrage drift
-adjustment” line on the slide.
-
-In practice we use Monte Carlo under Q to price options, with the
-compensated drift μ_rn = r_f − ½ σ² − λ κ.
-
-
-2.6 Likelihood‑ratio test and information criteria
---------------------------------------------------
-Black–Scholes is nested in MJD when λ → 0 and μ_J=0, σ_J=0.  Under the
-null H₀: “no jumps”, the likelihood‑ratio statistic
-
-  Λ = 2 [ ℓ_MJD − ℓ_BS ]  ~  χ²(3).                                     (22)
-
-The 3 degrees of freedom correspond to the additional parameters λ,
-μ_J, σ_J.  A very large Λ with p‑value ≈ 0 means the data strongly
-prefer MJD.
-
-On NIFTY data you obtained Λ ≈ 571 with p ≈ 0, which is **overwhelming**
-evidence in favour of jumps.
-
-Information criteria:
-
-  AIC = 2k − 2ℓ(θ̂),
-  BIC = k ln n − 2ℓ(θ̂),                                                (23)
-
-with k parameters and n observations.  Despite k_MJD = 5 vs k_BS = 2,
-the gain in log‑likelihood is so large that AIC and BIC are both lower
-for MJD, confirming that the extra parameters are justified.
-
-References:
-  – Merton (1976), J. Financial Economics 3(1–2).
-  – Aït‑Sahalia & Jacod (2007), Annals of Statistics 35(1).
-  – Cont & Tankov (2004), *Financial Modelling with Jump Processes*.
-
---------------------------------------------------------------------------------
-3. Visual evidence and how to explain it
---------------------------------------------------------------------------------
-
-3.1 Return distribution vs Normal (Figure 1 bottom‑left)
---------------------------------------------------------
-Explain:
-  • Histogram of NIFTY daily log‑returns over 2018–2024.
-  • Red curve is the Gaussian N(m̂, ŝ²) using sample mean and s.d.
-  • Observed distribution is **more peaked** and has **heavier tails**
-    (mass beyond ±5% moves) than the normal.
-
-Connect to theory:
-  – Under BS, r_t is exactly Gaussian ⇒ kurtosis 0.
-  – Empirical kurtosis ≈ 22 ⇒ incompatible with BS assumptions.
-
-
-3.2 Left‑tail zoom (new bottom‑right of Figure 1)
--------------------------------------------------
-Here you focus only on returns below −1%.  Emphasise that:
-  • The histogram bars in the left tail are much higher than the red
-    normal curve.
-  • Vertical lines at 1% and 0.5% empirical VaR show where BS assigns
-    almost zero probability.
-
-Link back to equations (18)–(19): adding the jump term λ(μ_J²+σ_J²)
-inflates tail probabilities precisely in this region.
-
-
-3.3 GBM vs MJD paths (Figure 3)
--------------------------------
-Use the new four‑panel figure:
-  • Top‑left: GBM paths — smooth, continuous, no sudden jumps.
-  • Top‑right: MJD paths — red vertical lines and dots marking jump
-    times; shows **many small jumps** because λ̂≈23/year and σ_J≈2.6%.
-  • Bottom‑left: same random seed for diffusion with/without jumps;
-    arrows highlight the size and direction of each jump.
-  • Bottom‑right: histogram of jump sizes J in %.
-
-This helps answer the “I don’t see jumps” confusion — the estimated
-model has frequent but mostly modest jumps, not huge 30–40% gaps.
-
-
-3.4 Tail behaviour and QQ plots
--------------------------------
-Figures 4 and 5 compare:
-  • BS simulated returns vs empirical vs MJD simulated returns.
-  • In QQ plots, tails of empirical distribution deviate strongly from
-    the 45° line under BS, but much less under MJD.
-
-Relate to excess kurtosis formula (19) and variance decomposition (18).
-
-
-3.5 VaR backtesting
--------------------
-Explain that BS 1% VaR systematically underestimates losses — you see
-too many exceedances (red dots) and cumulative breaches outside the
-Kupiec 95% band.  The empirical VaR (proxy for MJD) tracks the target
-1% rate much better.
-
-
---------------------------------------------------------------------------------
-4. Future work: Heston / Bates (for you only)
---------------------------------------------------------------------------------
-
-In the PPT you now just have a short “Future work” bullet list.  If asked
-verbally, you can say:
-
-  • Heston will relax **constant volatility** by modelling v(t) as a CIR
-    process, d v = κ(θ − v) dt + ξ √v dW_v.
-  • Bates will add jumps on top of Heston, combining stochastic volatility
-    and jumps to match the full IV surface.
-  • Numerical simulation for Heston’s √v(t) term is delicate (can go
-    negative); this is where Prof. Kumar’s tamed Euler / Milstein schemes
-    are highly relevant for stable Monte Carlo pricing.
-
-You don’t need to derive Heston/Bates for this mid‑term; just mention
-them as natural next steps.
+OVERVIEW
+--------
+This project prices European options on the NIFTY 50 index using two models:
+  1. Black-Scholes (BS): log-normal underlying, constant volatility
+  2. Merton Jump-Diffusion (MJD): GBM + Poisson jumps in the underlying
+
+Both models estimate parameters from NIFTY daily returns via MLE,
+then use those parameters to compute option prices and compare them.
+
+The key finding: BS systematically underprices out-of-the-money (OTM) puts
+because it assumes thin-tailed Gaussian returns, assigning near-zero
+probability to large crashes that affect option payoffs.
 
 ================================================================================
-End of explanation.
+SLIDE: Motivation — Why Option Pricing Needs Better Models
 ================================================================================
 
+The Black-Scholes formula (1973) is the industry standard for pricing European
+options. It gives:
+  C = S N(d1) - K e^{-rT} N(d2)
+  P = K e^{-rT} N(-d2) - S N(-d1)
+
+where d1 = [ln(S/K) + (r + sigma^2/2)T] / (sigma sqrt(T))
+      d2 = d1 - sigma sqrt(T)
+
+The critical assumption: sigma (volatility) is CONSTANT across all strikes K
+and maturities T. This implies:
+  - If you back out sigma from market option prices (implied volatility),
+    you should get the SAME value for all (K, T) pairs.
+  - In reality, implied volatility forms a "smile" or "skew" — it is higher
+    for OTM puts (low K) than for ATM options.
+
+This smile arises because real return distributions have:
+  - Fat tails (excess kurtosis > 0): large moves are more probable than Gaussian
+  - Negative skewness: crashes are more likely than equivalent rallies
+  - Jumps: sudden dislocations (COVID -13%, IL&FS, elections)
+
+These features directly affect option payoffs:
+  - A call pays max(S(T) - K, 0): only the right tail of S(T) matters
+  - A put pays max(K - S(T), 0): only the left tail matters
+  - If the model underestimates the probability of S(T) << K,
+    it UNDERPRICES puts, especially deep OTM puts
+
+Reference: Rubinstein (1994) documents the volatility smile in S&P 500 options.
+
+================================================================================
+SLIDE: Calibration Data — NIFTY 50 (2018-2024)
+================================================================================
+
+Data: NIFTY 50 daily closing prices from Yahoo Finance, 2018-01-01 to 2024-12-31.
+
+Model calibration uses STOCK RETURNS (not option prices directly):
+  r_t = ln(S_t / S_{t-1})
+
+This is correct methodology: you estimate the real-world (P-measure) parameters
+of the underlying process from historical returns, then switch to the
+risk-neutral (Q-measure) for pricing.
+
+Key statistics of NIFTY returns that matter for option pricing:
+  - Annualised volatility: ~17-18%
+  - Excess kurtosis: ~10-15 (much greater than 0 for Gaussian)
+  - Negative skewness: ~ -0.5 to -1.0
+  - Several days with |return| > 5% (impossible under BS thin tails)
+
+The left-tail zoom (Figure 01, bottom-right) is critical:
+  - Empirical returns below -1% are far more frequent than the Normal predicts
+  - The 1% VaR is much worse than Normal would suggest
+  - These extreme left-tail returns are exactly the scenarios where puts pay off
+  - BS underestimates these → underprices put options
+
+Risk-free rate: RBI repo rate ~6.5% (used for discounting in option pricing).
+
+================================================================================
+SLIDE: Black-Scholes — GBM SDE & Log-Price
+================================================================================
+
+The GBM SDE for the underlying NIFTY price:
+  dS(t) = mu S(t) dt + sigma S(t) dW(t)
+
+Where:
+  mu = drift (expected return)
+  sigma = volatility (standard deviation of returns)
+  W(t) = standard Brownian motion
+
+Apply Ito's lemma to f(S) = ln(S):
+  d(ln S) = (mu - sigma^2/2) dt + sigma dW(t)
+
+This is an SDE with constant coefficients → easy to integrate:
+  ln S(T) = ln S(0) + (mu - sigma^2/2)T + sigma W(T)
+
+Therefore:
+  S(T) = S(0) exp[(mu - sigma^2/2)T + sigma sqrt(T) Z],  Z ~ N(0,1)
+
+Daily log-returns are:
+  r_t = ln(S_t/S_{t-1}) = (mu - sigma^2/2)dt + sigma sqrt(dt) Z_t
+  r_t ~ N((mu - sigma^2/2)dt, sigma^2 dt)      [i.i.d. Gaussian]
+
+Why this matters for option pricing:
+  - The terminal distribution S(T) is log-normal
+  - The probability of S(T) being far below K (OTM put payoff) is thin-tailed
+  - For ATM options, BS works reasonably well
+  - For OTM puts, BS dramatically underestimates payoff probability
+
+================================================================================
+SLIDE: Black-Scholes — MLE Estimation
+================================================================================
+
+Given n daily returns r_1, ..., r_n (iid Gaussian under GBM):
+
+Log-likelihood:
+  L(mu, sigma) = -n/2 ln(2 pi sigma^2 dt) - 1/(2 sigma^2 dt) SUM (r_i - m)^2
+
+where m = (mu - sigma^2/2) dt.
+
+Closed-form MLE:
+  mu_hat = mean(r)/dt + sigma_hat^2/2
+  sigma_hat^2 = variance(r)/dt
+
+We use numerical optimisation (Nelder-Mead) to be consistent with MJD estimation.
+The key output for option pricing is sigma_hat (annualised volatility).
+
+For pricing: switch from P-measure to Q-measure (risk-neutral):
+  Under Q: dS = r_f S dt + sigma S dW^Q(t)
+  The drift changes from mu to r_f, but sigma stays THE SAME.
+
+This is the Girsanov theorem: the price of risk (mu-r_f)/sigma changes the
+probability measure but not the volatility. So the sigma estimated from
+historical data is what enters the BS option formula.
+
+Reference: Ait-Sahalia (2002) for MLE on diffusion processes.
+
+================================================================================
+SLIDE: Black-Scholes — Closed-Form Option Prices
+================================================================================
+
+European call: C(S, K, T, r, sigma) = S N(d1) - K e^{-rT} N(d2)
+European put:  P(S, K, T, r, sigma) = K e^{-rT} N(-d2) - S N(-d1)
+
+  d1 = [ln(S/K) + (r + sigma^2/2)T] / (sigma sqrt(T))
+  d2 = d1 - sigma sqrt(T)
+
+Interpretation:
+  - N(d2) = Q-probability that S(T) > K (call finishes in the money)
+  - N(d1) = delta of the call (hedge ratio)
+  - e^{-rT} = discount factor
+
+Monte Carlo validation:
+  C_MC = (1/N) SUM e^{-rT} max(S_i(T) - K, 0)
+
+where each S_i(T) is simulated under Q. By CLT, SE = std(payoffs)/(sqrt(N)).
+This confirms the closed-form is correct.
+
+Key limitation: sigma enters as a SINGLE constant. For different strikes K,
+the same sigma is used. This produces a FLAT implied volatility surface.
+In market data, IV varies with K (the "smile") — BS cannot produce this.
+
+================================================================================
+SLIDE: Merton Jump-Diffusion — SDE & Log-Return
+================================================================================
+
+MJD SDE:
+  dS(t)/S(t) = mu dt + sigma dW(t) + (e^J - 1) dN(t)
+
+Where:
+  N(t) = Poisson process with intensity lambda (jumps per year)
+  J ~ N(mu_J, sigma_J^2) = log-jump size
+  W(t), N(t), J are mutually independent
+
+Parameters: theta = (mu, sigma, lambda, mu_J, sigma_J) — 5 total
+
+Apply (generalised) Ito for jump-diffusions:
+  d(ln S) = (mu - sigma^2/2) dt + sigma dW(t) + J dN(t)
+
+In discrete time (daily, dt = 1/252):
+  r_t = (mu - sigma^2/2) dt + sigma sqrt(dt) Z_t + SUM_{j=1}^{N_t} J_j
+
+where N_t ~ Poisson(lambda dt) and J_j ~ N(mu_J, sigma_J^2) iid.
+
+Conditional on k jumps in [t, t+dt]:
+  r_t | N_t=k ~ N((mu - sigma^2/2)dt + k*mu_J, sigma^2 dt + k*sigma_J^2)
+
+Why this matters for option pricing:
+  - The terminal distribution S(T) is a mixture of log-normals (one for each k)
+  - The left tail is FATTER than log-normal (more probability of large drops)
+  - This directly increases the value of OTM puts
+  - The amount of increase depends on lambda, mu_J, sigma_J
+
+================================================================================
+SLIDE: MJD — Likelihood & Excess Kurtosis
+================================================================================
+
+The density of r_t is a Poisson-weighted Gaussian mixture:
+  f(r) = SUM_{k=0}^{infty} P(N_t=k) * phi(r; m_k, v_k)
+
+where P(N_t=k) = e^{-lambda dt} (lambda dt)^k / k!
+  m_k = (mu - sigma^2/2)dt + k*mu_J
+  v_k = sigma^2 dt + k*sigma_J^2
+
+Log-likelihood for n observations:
+  L(theta) = SUM_{i=1}^n ln f(r_i)
+  = SUM_i ln [SUM_{k=0}^K  e^{-lambda dt} (lambda dt)^k/k! * phi(r_i; m_k, v_k)]
+
+Truncation: K=15 terms (Poisson tail beyond that is negligible for lambda<50/year).
+
+Numerical trick: log-sum-exp for stability. We compute:
+  ln(SUM exp(a_k)) = max(a_k) + ln(SUM exp(a_k - max(a_k)))
+
+Optimisation: L-BFGS-B with bounds (sigma > 0, lambda >= 0, sigma_J > 0).
+
+VARIANCE decomposition:
+  Var(r_t) = sigma^2 dt + lambda dt (mu_J^2 + sigma_J^2)
+  
+  First term: diffusion variance (same as BS)
+  Second term: jump variance (ADDITIONAL source of uncertainty)
+
+EXCESS KURTOSIS:
+  kappa_4 = 3 lambda (mu_J^2 + sigma_J^2)^2 / [sigma^2 + lambda(mu_J^2 + sigma_J^2)]^2
+
+For lambda > 0 with sigma_J > 0, kurtosis > 0, so:
+  - Distribution has fatter tails than Gaussian
+  - More probability mass in the tails → higher option prices for OTM options
+
+This is the PRECISE MECHANISM: excess kurtosis → fatter tails → higher P(S(T) << K)
+→ put option worth more → MJD put price > BS put price.
+
+================================================================================
+SLIDE: ATM Option Prices — BS vs MJD
+================================================================================
+
+ATM = at-the-money, K approximately equal to S0.
+
+For ATM options, BS and MJD give SIMILAR prices because:
+  - Both models agree well near the center of the distribution
+  - ATM option pricing mainly depends on sigma, not tail behavior
+  - The jump component primarily affects the TAILS of S(T)
+
+What differs at ATM:
+  - The terminal distribution under MJD has heavier tails
+  - Put payoff distribution: MJD assigns more weight to large payoffs
+  - Even ATM puts are slightly more expensive under MJD
+
+Key figure elements:
+  - Bar chart of call/put prices under both models
+  - Terminal S(T) distribution comparison (MJD has fatter tails)
+  - Put payoff distribution (MJD has heavier right tail = more large payoffs)
+
+================================================================================
+SLIDE: Option Prices Across Strikes
+================================================================================
+
+This is the CORE RESULT of the project.
+
+For a range of strikes K from 85% to 115% of S0:
+  - CALLS: both models give similar prices (upper tail is similar)
+  - PUTS: MJD prices are HIGHER than BS, especially for K/S0 < 1 (OTM puts)
+
+The pricing difference MJD - BS:
+  - Near ATM (K/S0 = 1): small difference
+  - For OTM puts (K/S0 = 0.85-0.95): MJD price >> BS price
+
+Percentage difference for puts:
+  - At K/S0 = 0.90: MJD put can be 30-80% more expensive than BS put
+  - At K/S0 = 0.85: MJD put can be 100%+ more expensive
+
+Economic interpretation:
+  - An OTM put is crash insurance
+  - BS says a 15% crash in 30 days is nearly impossible → prices it very cheaply
+  - MJD says jumps make such crashes plausible → prices it realistically
+  - A trader using BS to sell protective puts is GIVING AWAY money
+
+================================================================================
+SLIDE: Implied Volatility Smile
+================================================================================
+
+Implied volatility (IV) = the sigma you'd plug into BS to match a given price.
+
+If we compute MJD option prices for various strikes, then back out IV:
+  IV(K) = BS^{-1}(C_MJD(K))  [invert BS formula for each K]
+
+Result: IV(K) is NOT flat. It forms a SMILE / SKEW:
+  - Higher IV for low K (OTM puts): the "skew"
+  - Slightly higher IV for high K (OTM calls): the "smile"
+  - Minimum near ATM
+
+BS can ONLY produce IV = sigma (constant flat line).
+The fact that MJD reproduces the smile observed in market data is strong
+evidence that jump risk is priced in real NIFTY options.
+
+Reference: Rubinstein (1994) documents the smile post-1987 crash.
+
+================================================================================
+SLIDE: OTM Put Pricing — Where BS Fails Most
+================================================================================
+
+OTM puts (K < S0): these are "crash protection" contracts.
+  - A put with K = 0.90*S0 pays off only if NIFTY drops >10%
+  - Under BS, the probability of this in 30 days is negligible
+  - Under MJD, jumps make it possible
+
+The MJD/BS price ratio:
+  - At K/S0 = 0.95: ratio ~ 1.3 (MJD 30% more expensive)
+  - At K/S0 = 0.90: ratio ~ 2-3
+  - At K/S0 = 0.85: ratio ~ 3-5+
+
+This is the most practically important finding:
+  - Hedge funds buying protective puts should use MJD pricing
+  - Market makers selling puts should charge MJD prices, not BS prices
+  - The difference represents the "jump risk premium" in option markets
+
+================================================================================
+SLIDE: Option Prices Across Maturities
+================================================================================
+
+For ATM options, compare prices across T = 7, 14, 30, 60, 90, 180 days.
+
+Key observations:
+  - Both call and put prices increase with maturity (more time = more uncertainty)
+  - MJD puts are ALWAYS more expensive than BS puts at every maturity
+  - For short maturities (7-14 days), individual jumps have larger impact
+    relative to diffusion → bigger MJD-BS difference in percentage terms
+  - For long maturities, diffusion dominates → prices converge somewhat
+
+Economic reason: with lambda jumps/year, in T days expect lambda*T/252 jumps.
+For T=7, maybe 0.1-0.2 jumps expected; when one occurs, it dominates the path.
+For T=180, many jumps aggregate → central limit effect → closer to Gaussian.
+
+================================================================================
+SLIDE: Parameter Sensitivity Heatmap
+================================================================================
+
+How do jump parameters affect MJD option prices?
+
+Sensitivity analysis: vary lambda (jump intensity) and sigma_J (jump vol)
+while holding other parameters fixed.
+
+Key findings:
+  - Higher lambda → more frequent jumps → higher option prices
+  - Higher sigma_J → larger jumps → much higher option prices
+  - The effect is NONLINEAR: doubling sigma_J can more than double the price
+  - Put prices are more sensitive than call prices to these parameters
+
+This shows that option prices are sensitive to jump parameters, which is
+why accurate MLE estimation matters.
+
+================================================================================
+SLIDE: Monte Carlo Convergence (Option Prices)
+================================================================================
+
+MC option pricing:
+  C = (1/N) SUM e^{-rT} max(S_i(T) - K, 0)
+
+Convergence:
+  - For BS: MC estimate should converge to the closed-form BS price
+  - For MJD: no closed-form, so MC IS the pricing method
+
+Results show:
+  - BS MC converges to the exact BS formula (validates implementation)
+  - SE decreases as 1/sqrt(N) (CLT rate)
+  - MJD MC converges to its own stable value (different from BS)
+  - With 100k paths, 95% CI is ~+/- 1-2 rupees
+
+Reference: Glasserman (2003) for MC methods in financial engineering.
+
+================================================================================
+SLIDE: Option Pricing at Indian Market Crises
+================================================================================
+
+Backtesting: use model parameters estimated from pre-event data, price ATM puts
+just before each crisis, then compare to realised payoff.
+
+Events:
+  - IL&FS collapse (Sep 2018): sudden credit crisis
+  - COVID crash (Mar 2020): -13% single-day drop
+  - Russia-Ukraine (Feb 2022): geopolitical shock
+  - Election surprise (Jun 2024): unexpected result
+
+For each event:
+  - BS put price: based on sigma_hat (Gaussian volatility)
+  - MJD put price: includes jump component
+  - Realised payoff: max(K - S_event, 0)
+
+Result: BS consistently UNDERPRICES the put (positive pricing error),
+while MJD comes closer to the realised payoff.
+
+This is the strongest practical evidence for MJD: when crashes actually
+happen, the model that includes jumps has already priced them in.
+
+================================================================================
+SLIDE: Variance Reduction for MC Option Pricing
+================================================================================
+
+Since MJD requires Monte Carlo, reducing SE matters for practical pricing.
+
+Three approaches:
+  1. Naive MC: direct simulation, SE = std(payoffs)/sqrt(N)
+  2. Antithetic variates: use Z and -Z in pairs
+     - Halves the number of random draws needed
+     - Works because option payoffs are monotone in S(T)
+  3. Control variates: use BS closed-form as a control
+     - C_CV = C_MJD_MC - beta * (C_BS_MC - C_BS_exact)
+     - beta = Cov(C_MJD, C_BS) / Var(C_BS)
+     - Can reduce SE by 50-80%
+
+Reference: Glasserman (2003), Chapter 4.
+
+================================================================================
+SLIDE: Model Selection — LRT, AIC, BIC
+================================================================================
+
+Likelihood Ratio Test (LRT):
+  LRT = 2 * [L(theta_MJD) - L(theta_BS)]
+  Under H0 (jumps not needed): LRT ~ chi^2(3)   [3 extra parameters]
+
+If LRT >> chi^2(3, 0.01) = 11.3, reject H0 at 1% level.
+Typically we get LRT > 100, so p-value is essentially 0.
+Conclusion: jumps are overwhelmingly statistically significant.
+
+AIC (Akaike):
+  AIC = 2k - 2L(theta_hat)
+  BS: k=2, MJD: k=5
+  Lower AIC = better model (penalises complexity)
+
+BIC (Bayesian):
+  BIC = k ln(n) - 2L(theta_hat)
+  Stronger penalty for extra parameters than AIC.
+
+Both AIC and BIC prefer MJD despite the 3 extra parameters.
+This means the improved fit to data (and hence better option pricing)
+more than justifies the added model complexity.
+
+Reference: Akaike (1974), Schwarz (1978).
+
+================================================================================
+SLIDE: Future Work — Heston, Bates, Tamed Euler
+================================================================================
+
+Current work: BS vs MJD (completed).
+
+Proposed extensions:
+  1. Heston (1993) stochastic volatility model:
+     dS = mu S dt + sqrt(v) S dW_S
+     dv = kappa(theta - v) dt + xi sqrt(v) dW_v
+     Corr(dW_S, dW_v) = rho
+     
+     - v(t) is stochastic → produces IV smile/surface
+     - CIR process for v(t): mean-reverting but sqrt(v) coefficient
+     - Option pricing via Fourier transform (Heston formula) or MC
+
+  2. Bates (1996) = Heston + jumps:
+     - Most flexible: stochastic vol + jumps → 8 parameters
+     - Can fit IV smile AND term structure simultaneously
+
+  3. Numerical challenge with Heston/Bates:
+     - sqrt(v) is not Lipschitz at v=0
+     - Standard Euler-Maruyama can give v < 0 (negative variance!)
+     - Need "tamed" or "truncated" Euler schemes
+
+  Connection to Prof. Chaman Kumar's research:
+     - Tamed Euler for Levy SDEs [Dareiotis, Kumar & Sabanis, 2016]
+     - Tamed Milstein for super-linear coefficients [Kumar & Sabanis, 2017]
+     - These methods provably converge even when sqrt(v) fails Lipschitz
+
+Reference:
+  [He93] Heston (1993). Rev. Financial Studies, 6(2).
+  [Ba96] Bates (1996). Rev. Financial Studies, 9(1).
+  [DKS16] Dareiotis, Kumar & Sabanis (2016). SIAM J. Numer. Anal., 54(3).
+  [KS17] Kumar & Sabanis (2017). EJP 22.
+
+================================================================================
+FULL REFERENCE LIST
+================================================================================
+
+Option Pricing Models:
+  [BS73] Black, F. & Scholes, M. (1973). The pricing of options and corporate
+         liabilities. J. Political Economy, 81(3), 637-654.
+  [Me76] Merton, R.C. (1976). Option pricing when underlying stock returns
+         are discontinuous. J. Financial Economics, 3(1-2), 125-144.
+  [He93] Heston, S.L. (1993). A closed-form solution for options with
+         stochastic volatility. Rev. Financial Studies, 6(2), 327-343.
+  [Ba96] Bates, D.S. (1996). Jumps and stochastic volatility. Rev. Financial
+         Studies, 9(1), 69-107.
+
+Statistical & Computational Methods:
+  [Ait02] Ait-Sahalia, Y. (2002). Maximum likelihood estimation of
+          discretely sampled diffusions. Econometrica, 70(1), 223-262.
+  [CT04] Cont, R. & Tankov, P. (2004). Financial Modelling with Jump
+         Processes. Chapman & Hall/CRC.
+  [Gl03] Glasserman, P. (2003). Monte Carlo Methods in Financial Engineering.
+         Springer.
+  [Ru94] Rubinstein, M. (1994). Implied binomial trees. J. Finance, 49(3).
+
+Supervisor's Research:
+  [DKS16] Dareiotis, K., Kumar, C. & Sabanis, S. (2016). On tamed Euler
+          approximations of SDEs driven by Levy noise with applications to
+          delay equations. SIAM J. Numer. Anal., 54(3).
+  [KS17] Kumar, C. & Sabanis, S. (2017). On tamed Milstein approximations
+         of stochastic differential equations with super-linearly growing
+         drift and diffusion coefficients. EJP, 22.
+  [KK20] Kumar, C. & Kumar, T.K. (2020). On explicit tamed Milstein-type
+         scheme for stochastic differential equation with Markovian switching.
+         J. Comp. Appl. Math., 377.
+  [KNRS20] Kumar, C., Neelima, Reisinger, C. & Stockinger, W. (2020).
+           Well-posedness and tamed schemes for McKean-Vlasov equations
+           with common noise. arXiv:2006.00463.
+
+================================================================================
+END OF MATHEMATICAL EXPLANATION
+================================================================================
