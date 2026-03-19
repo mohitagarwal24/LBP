@@ -29,6 +29,41 @@ render_latex(
     r'$dS(t) = \mu\, S(t)\, dt + \sigma\, S(t)\, dW(t)$',
     'eq_bs_sde.png', fontsize=24)
 
+# BS: Hedged portfolio setup (PDE derivation)
+render_latex(
+    r'$\Pi = V(S,t) - \Delta S,\qquad d\Pi = dV - \Delta\, dS$',
+    'eq_bs_portfolio.png', fontsize=24)
+
+# BS: Ito for option value
+render_latex(
+    r'$dV = \left(V_t + \mu S V_S + \frac{1}{2}\sigma^2 S^2 V_{SS}\right)dt + \sigma S V_S\, dW$',
+    'eq_bs_ito_option.png', fontsize=20)
+
+# BS: Choose Delta to eliminate randomness
+render_latex(
+    r'$\Delta = V_S \;\Rightarrow\; \sigma S\,(V_S-\Delta)\, dW = 0,\;\;\mu\ \mathrm{cancels}$',
+    'eq_bs_delta_hedge.png', fontsize=22)
+
+# BS: No-arbitrage -> PDE
+render_latex(
+    r'$d\Pi = r_f \Pi\, dt \;\Rightarrow\; V_t + \frac{1}{2}\sigma^2 S^2 V_{SS} + r_f S V_S - r_f V = 0$',
+    'eq_bs_pde.png', fontsize=20)
+
+# Discrete-sampling likelihood (general diffusion)
+render_latex(
+    r'$\ell_n(\theta)=\sum_{i=1}^{n}\ln\!\left\{p(\Delta, x_i \mid x_{i-1};\theta)\right\}$',
+    'eq_disc_loglik.png', fontsize=24)
+
+# Aït-Sahalia: closed-form Hermite expansion idea
+render_latex(
+    r'$p(\Delta,x\mid x_0;\theta)\ \approx\ p^{(J)}(\Delta,x\mid x_0;\theta)\ \ \text{(closed-form Hermite expansion, }J=2,3\text{)}$',
+    'eq_as_hermite.png', fontsize=18)
+
+# Euler pseudo-likelihood (Gaussian local approximation)
+render_latex(
+    r'$X_{t+\Delta}\approx X_t + \mu(X_t;\theta)\Delta + \sigma(X_t;\theta)\sqrt{\Delta}\,Z,\ \ Z\sim N(0,1)$',
+    'eq_euler_pseudolik.png', fontsize=18)
+
 # BS: Ito's Lemma result
 render_latex(
     r'$S(T) = S_0 \cdot \exp\!\left[\left(\mu - \frac{\sigma^2}{2}\right)T + \sigma\sqrt{T}\, Z\right],\quad Z \sim \mathcal{N}(0,1)$',
@@ -102,6 +137,21 @@ render_latex(
 render_latex(
     r'$\kappa = \mathbb{E}[e^J - 1] = e^{\mu_J + \sigma_J^2/2} - 1$',
     'eq_mjd_kappa.png', fontsize=22)
+
+# MJD: Risk-neutral drift (compensator) for option pricing
+render_latex(
+    r'$dS(t) = (r_f - \lambda\kappa)\,S(t^{-})dt + \sigma S(t^{-})\,dW^{\mathbb{Q}}(t) + S(t^{-})(e^{J}-1)\,dN(t)$',
+    'eq_mjd_riskneutral_sde.png', fontsize=18)
+
+# MJD: Conditional BS parameters given k jumps
+render_latex(
+    r'$\sigma_k^2 = \sigma^2 + \frac{k\sigma_J^2}{T},\qquad r_k = r_f-\lambda\kappa + \frac{k\mu_J}{T} + \frac{k\sigma_J^2}{2T}$',
+    'eq_mjd_rk_sigk.png', fontsize=18)
+
+# MJD: Merton series price (mixture of BS prices)
+render_latex(
+    r'$V_{MJD} = \sum_{k=0}^{\infty}\frac{e^{-\lambda T}(\lambda T)^k}{k!}\;\mathrm{BS}\!\left(S_0,K,T,r_k,\sigma_k\right)$',
+    'eq_mjd_series.png', fontsize=18)
 
 # MJD: Excess kurtosis
 render_latex(

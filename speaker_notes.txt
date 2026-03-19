@@ -1,6 +1,275 @@
 ================================================================================
-SPEAKER NOTES: STOCHASTIC OPTION PRICING PRESENTATION
+SPEAKER NOTES: STOCHASTIC OPTION PRICING PRESENTATION (v6 PPTX)
 Focus: European Option Pricing on NIFTY 50 — BS vs MJD
+================================================================================
+
+SLIDE 1: TITLE
+--------------
+"Good morning/afternoon. Today I'm presenting my mid-term evaluation on the
+comparative study of stochastic models for OPTION PRICING on the NIFTY 50
+index. This work is supervised by Professor Chaman Kumar.
+
+The central question is: how well does the Black–Scholes model price European
+options, and can the Merton Jump-Diffusion model do better?"
+
+SLIDE 2: OUTLINE
+-----------------
+"I’ll start with motivation and data. Then I’ll cover Black–Scholes: the GBM
+assumption, the Nobel insight of delta hedging leading to the BS PDE, and then
+MLE calibration and the closed-form option formula. Next I’ll cover Merton
+Jump-Diffusion: the SDE, the risk-neutral compensator, the series pricing
+formula using the law of total expectation, and MLE for jump parameters.
+
+Finally, I’ll present the option price comparisons across strikes/maturities,
+the implied-volatility smile, crisis-event pricing, model selection criteria,
+and future work."
+
+SLIDE 3: MOTIVATION
+-------------------
+"NIFTY 50 options are among the most traded contracts globally. Practitioners
+use Black–Scholes to price and hedge, but BS systematically misprices out-of-
+the-money puts — it prices crash protection too cheaply.
+
+The reason is the Gaussian assumption: BS assigns near-zero probability to
+large crashes like COVID. The volatility smile/skew in market data is the
+empirical signature of this mismatch.
+
+Our project: calibrate BS and Merton JD on NIFTY data, then compare the implied
+OPTION PRICES — where the differences matter most for OTM puts."
+
+SLIDE 4: CALIBRATION DATA
+--------------------------
+"We use NIFTY 50 daily closes (2018–2024). This includes IL&FS, COVID, the
+Russia–Ukraine shock, and the 2024 election surprise.
+
+The key panels: return histogram vs Normal, and the left-tail zoom. The Normal
+curve severely underestimates the frequency of extreme negative returns.
+
+Those tail events are exactly what puts are “buying.” Underestimating them
+means underpricing puts."
+
+SLIDE 5: BS SDE & ITÔ
+-----------------------
+"Black–Scholes assumes GBM: dS = μSdt + σSdW.
+Apply Itô to log(S) → log-price has drift (μ − σ²/2)dt and diffusion σ dW.
+So log-returns are i.i.d. Gaussian and S(T) is lognormal.
+
+Key option-pricing consequence: lognormal tails are too thin → deep OTM puts
+become almost worthless under BS."
+
+SLIDE 6: BLACK–SCHOLES PDE (DELTA-HEDGING PROOF)
+-------------------------------------------------
+"This is the Nobel idea: eliminate randomness by replication.
+
+Let option value be V(S,t). Create a self-financing portfolio:
+Π = V − ΔS.
+
+Use Itô’s lemma for dV and substitute dS. In dΠ, the dW term is:
+σS (V_S − Δ) dW.
+
+Choose Δ = V_S (delta hedging). Then dW disappears — portfolio is locally
+riskless over dt.
+
+Crucial: μ cancels too. Option pricing does not require the stock’s expected
+return.
+
+No-arbitrage: riskless Π must earn r_f:
+dΠ = r_f Π dt → rearrange → Black–Scholes PDE:
+V_t + (1/2)σ²S²V_SS + r_f S V_S − r_f V = 0."
+
+SLIDE 7: BS MLE (CALIBRATION)
+------------------------------
+"Given daily log-returns, BS/GBM implies a Normal transition density.
+So the log-likelihood is explicit and MLE essentially estimates the sample mean
+and variance (annualized to get σ̂).
+
+For pricing, we move to the risk-neutral measure Q. Under Q, drift becomes r_f,
+but σ stays the same. That’s why σ̂ from historical data is the key input."
+
+SLIDE 8: MLE FOR DISCRETELY SAMPLED SDES (AÏT‑SAHALIA + IACUS)
+--------------------------------------------------------------
+"This slide justifies why we talk about likelihood approximations.
+
+With discrete data, exact MLE uses the transition density:
+ℓ_n(θ) = Σ log p(Δ, x_i | x_{i−1}; θ).
+
+Aït‑Sahalia’s core point: for discretely sampled diffusions, p(Δ,·|·;θ) is
+usually not available in closed form, so he constructs a convergent closed-form
+approximation using Hermite polynomials.
+
+Iacus frames this as the fixed-Δ observation scheme and notes that for discrete
+data the likelihood is almost always unavailable, motivating pseudo/approximated
+likelihood methods."
+
+SLIDE 9: BS CLOSED-FORM OPTION PRICE
+-------------------------------------
+"Solving the BS PDE with terminal payoff gives the closed-form formula for
+European call and put (via put–call parity).
+
+d1 and d2 encode moneyness, time, and volatility. N(d2) can be interpreted as
+the risk-neutral probability of finishing in-the-money.
+
+Limit: single constant σ ⇒ BS cannot produce a volatility smile/skew."
+
+SLIDE 10: MJD SDE
+------------------
+"Merton JD adds jumps to GBM: a compound Poisson process.
+Jumps arrive with intensity λ; jump sizes J are Normal in log space.
+
+Returns become diffusion + jump component. Conditional on k jumps, returns are
+Gaussian with shifted mean and larger variance.
+
+This produces a mixture distribution with fat tails — exactly what options
+care about."
+
+SLIDE 11: MERTON JD OPTION PRICING (COMPENSATOR + SERIES)
+---------------------------------------------------------
+"First define κ = E[e^J − 1]. Jumps add expected growth, so under risk-neutral Q
+we subtract λκ from the drift to force total expected growth to equal r_f.
+
+Then price via:
+C0 = e^{−r_f T} E^Q[(S_T − K)^+].
+
+Use the Law of Total Expectation by conditioning on N(T)=k:
+C0 = Σ P(N(T)=k) * e^{−r_f T} E^Q[(S_T − K)^+ | N(T)=k].
+
+Conditional on k, the terminal distribution is lognormal with modified (r_k, σ_k),
+so the conditional price is exactly a Black–Scholes price. Therefore the final
+price is a Poisson-weighted series of BS prices."
+
+SLIDE 12: SERIES TRUNCATION — VISUAL PROOF
+-------------------------------------------
+"This figure makes the truncation argument precise.
+
+Poisson weights P(N(T)=k) decay extremely fast because of k! in the denominator.
+The cumulative mass approaches 1 quickly, the series price stabilizes, and the
+remaining tail mass becomes tiny (log scale).
+
+So truncating around k≈20 terms is computationally safe in our parameter regime."
+
+SLIDE 13: MLE IN PRACTICE (IACUS) — EXACT VS PSEUDO/APPROX
+-----------------------------------------------------------
+"Iacus classifies estimation methods for discretely observed diffusions:
+• Exact likelihood (rare, e.g., GBM/BS),
+• Pseudo-likelihood (Euler Gaussian approximation),
+• Approximated likelihood (Kessler, simulated likelihood, Hermite expansion).
+
+Euler pseudo-likelihood approximates the increment as locally Gaussian over Δ.
+In our project:
+• BS: explicit Gaussian log-return transition ⇒ MLE is easy.
+• MJD: Poisson–Gaussian mixture ⇒ MLE is numerical and bounded."
+
+SLIDE 14: MJD LIKELIHOOD & MOMENTS
+-----------------------------------
+"MJD daily return density is a Poisson-weighted Gaussian mixture. We truncate
+at K terms (practically sufficient). We compute the log-likelihood using
+log-sum-exp for numerical stability and maximize with L-BFGS-B.
+
+Variance decomposes into diffusion variance + jump variance. Jumps add excess
+kurtosis → fat tails → higher OTM put prices."
+
+SLIDE 15: ATM OPTION PRICES (BS VS MJD)
+----------------------------------------
+"At-the-money, the two models are closer because pricing is dominated by the
+central part of S(T). Calls are similar; puts are slightly higher under MJD.
+
+The key is the payoff distribution: MJD assigns more weight to large put payoffs
+because it allows crashes."
+
+SLIDE 16: OPTIONS ACROSS STRIKES
+---------------------------------
+"Core result: calls are similar across strikes, but puts diverge strongly for
+OTM (K/S0 < 1). MJD puts are substantially higher — BS underprices crash protection."
+
+SLIDE 17: IMPLIED VOLATILITY SMILE
+-----------------------------------
+"If we back out BS implied vol from MJD prices, we obtain a smile/skew.
+BS can only give a flat line at σ̂. This connects directly to what traders see."
+
+SLIDE 18: OTM PUT PRICING (WHERE BS FAILS MOST)
+-----------------------------------------------
+"Deep OTM puts: MJD/BS price ratio can be multiple times. This quantifies how
+much BS underprices insurance against large drops."
+
+SLIDE 19: OPTION TERM STRUCTURE
+--------------------------------
+"Across maturities, MJD puts are consistently more expensive. Short maturities
+are most sensitive to jumps; long maturities average out more."
+
+SLIDE 20: PARAMETER SENSITIVITY (λ, σ_J)
+-----------------------------------------
+"Option prices increase with jump intensity λ and jump size volatility σ_J.
+The effect is nonlinear and stronger for puts."
+
+SLIDE 21: MONTE CARLO CONVERGENCE
+----------------------------------
+"BS MC converges to the closed-form; MJD MC converges to its own value.
+Standard error shrinks ∝ 1/√N, confirming correctness and numerical stability."
+
+SLIDE 22: EVENT OPTION PRICING (CRISES)
+---------------------------------------
+"Before each crisis, we price an ATM put under both models and compare to
+realized payoff. BS systematically underprices; MJD is closer because it already
+prices jump risk."
+
+SLIDE 23: VARIANCE REDUCTION
+-----------------------------
+"Antithetic variates and control variates reduce MC error. Control variate using
+BS as a control gives the strongest SE reduction — important for practical MJD pricing."
+
+SLIDE 24: MODEL SELECTION (LRT, AIC, BIC)
+-----------------------------------------
+"LRT strongly rejects “no jumps.” AIC/BIC still prefer MJD despite extra parameters.
+This provides formal statistical support for including jumps."
+
+SLIDE 25: GBM VS MJD PATHS
+---------------------------
+"Visual intuition: GBM paths are smooth; MJD has jump events. Jumps change S(T)
+tail probabilities, which directly changes option payoffs."
+
+SLIDE 26: QQ PLOTS
+-------------------
+"QQ vs Normal shows fat-tail departure. QQ vs MJD fits tails better. Tail fit is
+exactly why MJD produces more realistic put prices."
+
+SLIDE 27: SUMMARY DASHBOARD
+----------------------------
+"One slide summary: MJD has better fit and more realistic option prices,
+especially for tail protection; statistics support the jump component."
+
+SLIDE 28: COMPARISON TABLE
+---------------------------
+"Side-by-side: BS is simpler and closed-form; MJD is richer and prices OTM puts
+more realistically."
+
+SLIDE 29: FUTURE WORK
+----------------------
+"Extend to stochastic volatility models: Heston and Bates. Numerical challenge:
+non-Lipschitz square-root volatility dynamics. Connection to Prof. Kumar’s work:
+tamed Euler/Milstein schemes help simulate these reliably."
+
+SLIDE 30: REFERENCES
+---------------------
+"References include Black–Scholes (1973), Merton (1976), Glasserman (2003),
+Rubinstein (1994), plus Aït‑Sahalia (Econometrica) and Iacus (Springer, 2008)
+for MLE under discrete observation schemes."
+
+SLIDE 31: THANK YOU
+--------------------
+"Thank you. I’m happy to take questions about the derivations, calibration,
+or the option pricing implications."
+
+================================================================================
+TIPS FOR PRESENTATION (v6)
+================================================================================
+- Lead with the practical problem: "BS misprices options"
+- Crown jewel: emphasize "Δ hedging removes dW ⇒ PDE ⇒ μ cancels"
+- For Merton: emphasize "Law of Total Expectation" and point to the truncation visualization
+- When explaining MLE: stress discrete sampling issue (Aït‑Sahalia) + fixed-Δ scheme (Iacus)
+- Use the crisis-event pricing as the "wow" moment
+- OTM put pricing slide is the strongest applied takeaway
+- End with future work connecting to supervisor's numerical analysis research
+
 ================================================================================
 
 SLIDE 1: TITLE

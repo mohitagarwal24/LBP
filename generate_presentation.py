@@ -10,7 +10,7 @@ from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
 
 FIG = "figures/"
-OUT = "Stochastic_Option_Pricing_Presentation_v3.pptx"
+OUT = "Stochastic_Option_Pricing_Presentation_v6_Merton_series_visual.pptx"
 
 DB = RGBColor(0x1B,0x3A,0x6B); OR = RGBColor(0xC8,0x52,0x1A)
 WH = RGBColor(0xFF,0xFF,0xFF); BK = RGBColor(0x00,0x00,0x00)
@@ -116,7 +116,23 @@ bl(s,7,1.4,5.5,5,[
     'The estimated σ̂ is then plugged into the BS option pricing formula.',
 ],14)
 
-# ── Slide 6: BS MLE ──
+# ── NEW Slide 6: Black–Scholes PDE (delta-hedging proof) ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,12,.6,'3. Black–Scholes PDE: Eliminating dW(t) via Delta Hedging (Proof)',28,DB,True); bar(s,.8,1,.3,.04)
+img(s,'eq_bs_portfolio.png',.8,1.2,width=6.2)
+img(s,'eq_bs_ito_option.png',.8,2.2,width=6.8)
+img(s,'eq_bs_delta_hedge.png',.8,3.35,width=6.5)
+img(s,'eq_bs_pde.png',.8,4.55,width=7.2)
+bl(s,7.5,1.2,5.6,5.6,[
+    'Portfolio Π = long 1 option, short Δ shares.',
+    'Apply Itô to V(S,t); substitute dS = μSdt + σSdW.',
+    'Choose Δ = V_S ⇒ the random term cancels: dW disappears.',
+    'Crucial: μ cancels too ⇒ option price does NOT depend on expected stock return.',
+    'No-arbitrage: riskless Π must earn r_f ⇒ Black–Scholes PDE.',
+    'This is the key Nobel-Prize insight: dynamic replication → risk-neutral pricing.',
+],14)
+
+# ── Slide 7: BS MLE ──
 s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
 tx(s,.8,.3,10,.6,'3. Black–Scholes: Maximum Likelihood Estimation',30,DB,True); bar(s,.8,1,.3,.04)
 img(s,'eq_bs_loglik.png',.7,1.4,width=6.7)
@@ -131,7 +147,27 @@ bl(s,7.2,4.2,5.5,2,[
     'For pricing: switch to risk-neutral measure Q (Girsanov). Drift becomes r_f, but σ stays the same.',
 ],14)
 
-# ── Slide 7: BS Option Pricing Formula ──
+# ── NEW Slide 8: MLE with discretely sampled diffusions (Aït-Sahalia + Iacus) ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,12,.6,'3.1 MLE for Discretely Sampled SDEs (Why it is hard)',28,DB,True); bar(s,.8,1,.3,.04)
+img(s,'eq_disc_loglik.png',.8,1.3,width=6.0)
+bl(s,7.0,1.2,6.1,2.0,[
+    'Discrete data: X_{t_i} observed at fixed Δ (e.g., daily).',
+    'Exact MLE needs the transition density p(Δ, x_i | x_{i−1}; θ).',
+    'For most nonlinear SDEs this density is NOT available in closed form.',
+],14)
+bl(s,.8,2.6,12.3,1.2,[
+    'Aït-Sahalia’s key statement (Econometrica): for discretely sampled diffusions,',
+    '“the transition distribution and hence the likelihood … is not explicitly computable” in most cases,',
+    'so he constructs a convergent closed-form approximation using Hermite polynomials. [AS02]',
+],14,RGBColor(0x33,0x33,0x33))
+img(s,'eq_as_hermite.png',.8,4.05,width=11.2)
+bl(s,.8,5.1,12.3,1.2,[
+    'Iacus (Springer book) formalizes the “fixed-Δ” scheme and emphasizes that with discrete-time observations',
+    'the likelihood is “almost always unavailable in explicit form,” motivating pseudo/approximated likelihoods. [Iac08]',
+],13,GY)
+
+# ── Slide 8: BS Option Pricing Formula ──
 s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
 tx(s,.8,.3,10,.6,'3. Black–Scholes: Closed-Form Option Prices',30,DB,True); bar(s,.8,1,.3,.04)
 img(s,'eq_bs_call.png',.7,1.4,width=6)
@@ -148,7 +184,7 @@ bl(s,.7,5,11,1.5,[
     '→ In reality, NIFTY options trade with a pronounced volatility smile/skew. BS cannot reproduce this.',
 ],14,RGBColor(0xAA,0x00,0x00))
 
-# ── Slide 8: MJD SDE ──
+# ── Slide 9: MJD SDE ──
 s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
 tx(s,.8,.3,10,.6,'4. Merton Jump-Diffusion: SDE & Log-Return',30,DB,True); bar(s,.8,1,.3,.04)
 img(s,'eq_mjd_sde.png',.7,1.3,width=6.7)
@@ -163,7 +199,50 @@ bl(s,7.1,1.5,5.4,4.7,[
     '[Me76] Merton (1976), [CT04] Cont & Tankov (2004).',
 ],14)
 
-# ── Slide 9: MJD Likelihood & Moments ──
+# ── NEW Slide 10: MJD risk-neutral option pricing proof (compensator + series) ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,12,.6,'4. Merton JD Option Pricing: Risk-Neutral Compensator & Series (Proof)',28,DB,True); bar(s,.8,1,.3,.04)
+img(s,'eq_mjd_kappa.png',.8,1.2,width=5.8)
+img(s,'eq_mjd_riskneutral_sde.png',.8,2.2,width=11.8)
+img(s,'eq_mjd_rk_sigk.png',.8,3.45,width=11.2)
+img(s,'eq_mjd_series.png',.8,4.65,width=11.8)
+bl(s,.8,5.65,12.3,1.6,[
+    'Key arbitrage constraint: under Q, total expected growth (diffusion + expected jumps) must equal r_f.',
+    'Hence drift becomes (r_f − λκ). Conditional on k jumps, the terminal log-price is Gaussian ⇒ BS formula with modified (r_k, σ_k).',
+    'Final price is a Poisson-weighted average of BS prices across k. [Me76]',
+],13,GY)
+
+# ── NEW Slide 11: Visual proof of truncation safety (Poisson tail) ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,12,.6,'4.2 Why truncating the infinite series is safe (Visualization)',28,DB,True); bar(s,.8,1,.3,.04)
+img(s,'15_merton_series_truncation.png',.35,1.2,width=12.6)
+bl(s,.8,6.55,12.0,.7,[
+    'Poisson weights decay super-fast due to k! in the denominator ⇒ tail mass after k≈20 is negligible; price stabilizes.',
+    'This justifies truncating the Merton series in numerical implementations.',
+],13,GY)
+
+# ── NEW Slide 11: Practical MLE constructions (Iacus) ──
+s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
+tx(s,.8,.3,12,.6,'4.1 MLE in Practice: Exact vs Pseudo/Approximated Likelihood (Iacus)',28,DB,True); bar(s,.8,1,.3,.04)
+bl(s,.8,1.2,12.3,1.0,[
+    'Iacus (2008) classifies estimation under discrete observations into:',
+    '• Exact likelihood inference (when transition density is known, e.g., GBM/BS)',
+    '• Pseudo-likelihood methods (e.g., Euler Gaussian approximation)',
+    '• Approximated likelihood methods (Kessler, simulated likelihood, Hermite expansion)',
+],15)
+img(s,'eq_euler_pseudolik.png',.9,2.55,width=11.5)
+bl(s,.9,3.6,12.2,2.6,[
+    'Euler pseudo-likelihood uses the local Gaussian approximation over Δ:',
+    'this is the baseline idea behind many feasible estimators when p(Δ,·|·;θ) is unknown.',
+    '',
+    'In our project:',
+    '• BS/GBM has an explicit Gaussian transition for log-returns ⇒ exact MLE is easy.',
+    '• MJD has a Poisson–Gaussian mixture transition ⇒ we maximize a (truncated) mixture log-likelihood numerically.',
+    '',
+    'Reference: Iacus (2008), Chapter 3 (Parametric Estimation). [Iac08]',
+],14,GY)
+
+# ── Slide 13: MJD Likelihood & Moments ──
 s=prs.slides.add_slide(prs.slide_layouts[6]); bg(s,WH); bar(s,0,0,13.333,.08,DB)
 tx(s,.8,.3,10,.6,'4. MJD: Likelihood & Excess Kurtosis',30,DB,True); bar(s,.8,1,.3,.04)
 img(s,'eq_mjd_density.png',.7,1.4,width=6.9)
@@ -343,8 +422,11 @@ bl(s,.8,1.2,11.5,6,[
     '  [He93] Heston (1993). Review of Financial Studies, 6(2), 327–343.',
     '  [Ba96] Bates (1996). Review of Financial Studies, 9(1), 69–107.',
     '',
-    'Statistical & Computational Methods:',
-    '  [Aït-Sa02] Aït-Sahalia (2002). Econometrica, 70(1), 223–262.',
+    'Statistical & Computational Methods (MLE for discretely sampled SDEs):',
+    '  [AS02] Aït-Sahalia, Y. (2002). Maximum likelihood estimation of discretely sampled diffusions:',
+    '        a closed-form approximation approach. Econometrica, 70(1), 223–262.',
+    '  [Iac08] Iacus, S.M. (2008). Simulation and Inference for Stochastic Differential Equations.',
+    '         Springer Series in Statistics. Springer.',
     '  [CT04] Cont & Tankov (2004). Financial Modelling with Jump Processes.',
     '  [Gl03] Glasserman (2003). MC Methods in Financial Engineering.',
     '  [Ru94] Rubinstein (1994). J. Finance, 49(3), 771–818.',

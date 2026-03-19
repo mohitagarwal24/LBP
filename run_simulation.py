@@ -122,6 +122,30 @@ def mjd_mc_price(S0, K, T, rf, sigma, lam, mu_j, sigma_j,
     se_p = disc*np.maximum(K-ST,0).std()/np.sqrt(n_paths)
     return {'call':c,'put':p,'se_c':se_c,'se_p':se_p,'ST':ST}
 
+def mjd_merton_series_price(S0, K, T, rf, sigma, lam, mu_j, sigma_j, k_max=40, use_lambda_prime=True):
+    """
+    Merton (1976) series price via Law of Total Expectation.
+    Uses a Poisson-weighted average of BS prices conditional on k jumps.
+
+    Notes:
+      - kappa = E[e^J - 1]
+      - risk-neutral compensator sets drift to (rf - lam*kappa)
+      - some presentations use lambda' = lam*(1+kappa) under Q; we allow this toggle
+    """
+    kappa = np.exp(mu_j + 0.5*sigma_j**2) - 1
+    lam_q = lam*(1+kappa) if use_lambda_prime else lam
+    # Poisson weights under Q
+    ks = np.arange(0, k_max+1)
+    w = np.exp(-lam_q*T) * (lam_q*T)**ks / np.array([math.factorial(int(k)) for k in ks], dtype=float)
+    # Modified parameters conditional on k jumps
+    sig_k = np.sqrt(sigma**2 + (ks * sigma_j**2)/max(T, 1e-12))
+    r_k = rf - lam*kappa + (ks*mu_j)/max(T, 1e-12) + (ks*sigma_j**2)/(2*max(T, 1e-12))
+    # Series call/put
+    call = float(np.sum(w * np.array([bs_price(S0, K, T, rk, sk, 'call') for rk, sk in zip(r_k, sig_k)])))
+    put  = float(np.sum(w * np.array([bs_price(S0, K, T, rk, sk, 'put')  for rk, sk in zip(r_k, sig_k)])))
+    tail_mass = float(1 - np.sum(w))
+    return {"call": call, "put": put, "tail_mass": tail_mass, "lam_q": float(lam_q), "kappa": float(kappa), "weights": w, "ks": ks}
+
 # Common option parameters
 K_atm = round(S0/100)*100
 T30 = 30/252          # 1-month maturity
@@ -625,6 +649,70 @@ ax.set_title(f'10% OTM Put Price (K={otm_k:.0f})',fontweight='bold'); ax.grid(Tr
 
 plt.suptitle('BS vs MJD: Comprehensive Option Pricing Comparison on NIFTY 50',fontsize=15,fontweight='bold',y=1.02)
 plt.tight_layout(); plt.savefig(f'{FIG}14_summary_dashboard.png'); plt.close()
+
+print('  Fig 15: Merton series truncation visualization...')
+series = mjd_merton_series_price(S0, K_atm, T30, r_f, sig_m, lam_m, muj_m, sigj_m, k_max=60, use_lambda_prime=True)
+ks = series["ks"]; w = series["weights"]
+cum = np.cumsum(w)
+
+# Price convergence vs k_max
+k_grid = np.arange(0, 41)
+calls_k = []
+tail_k = []
+for kmax in k_grid:
+    sr = mjd_merton_series_price(S0, K_atm, T30, r_f, sig_m, lam_m, muj_m, sigj_m, k_max=int(kmax), use_lambda_prime=True)
+    calls_k.append(sr["call"])
+    tail_k.append(sr["tail_mass"])
+
+fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+
+ax = axes[0,0]
+ax.bar(ks[:26], w[:26], color='#1B3A6B', alpha=0.85, edgecolor='black', linewidth=0.3)
+ax.set_title('Risk-neutral Poisson weights:  P(N(T)=k)', fontweight='bold')
+ax.set_xlabel('k jumps before expiry'); ax.set_ylabel('Probability mass')
+ax.grid(True, alpha=0.25, axis='y')
+ax.text(
+    0.98,
+    0.95,
+    f"lambda'={series['lam_q']:.2f}/yr\nT={T30*252:.0f}d",
+    transform=ax.transAxes,
+    ha='right',
+    va='top',
+    fontsize=11,
+    color='#333333',
+    bbox=dict(boxstyle='round,pad=0.35', facecolor='white', alpha=0.85, edgecolor='#999999'),
+)
+
+ax = axes[0,1]
+ax.plot(ks, cum, color='#C8521A', lw=2.5)
+ax.axhline(0.999, color='gray', ls='--', lw=1)
+ax.axhline(0.9999, color='gray', ls=':', lw=1)
+ax.set_ylim(0.95, 1.00005)
+ax.set_title('Cumulative mass  Σ P(N≤k)  (tail mass vanishes fast)', fontweight='bold')
+ax.set_xlabel('k'); ax.set_ylabel('Cumulative probability')
+ax.grid(True, alpha=0.25)
+
+ax = axes[1,0]
+ax.plot(k_grid, calls_k, 'o-', color='#1B3A6B', lw=2, ms=4)
+ax.set_title('Merton series call price convergence vs truncation k_max', fontweight='bold')
+ax.set_xlabel('k_max (truncate series at k_max)'); ax.set_ylabel('Call Price (₹)')
+ax.grid(True, alpha=0.25)
+ax.annotate('Beyond ~20 terms: change is negligible', xy=(20, calls_k[20]), xytext=(10, calls_k[20]*1.02),
+            arrowprops=dict(arrowstyle='->', color='red', lw=1.5),
+            fontsize=10, color='red', fontweight='bold')
+
+ax = axes[1,1]
+ax.semilogy(k_grid, np.maximum(tail_k, 1e-20), 's-', color='darkred', lw=2, ms=4)
+ax.set_title('Tail probability mass  1 − Σ_{k=0}^{k_max} P(N=k)', fontweight='bold')
+ax.set_xlabel('k_max'); ax.set_ylabel('Tail mass (log scale)')
+ax.grid(True, alpha=0.25)
+ax.annotate('k! grows fast ⇒ weights after k≈20 are tiny', xy=(20, max(tail_k[20],1e-20)),
+            xytext=(7, 1e-6), arrowprops=dict(arrowstyle='->', color='darkred', lw=1.5),
+            fontsize=10, color='darkred', fontweight='bold')
+
+plt.suptitle('Why truncating the Merton infinite series is safe (Law of Total Expectation + Poisson tails)',
+             fontsize=14, fontweight='bold', y=1.01)
+plt.tight_layout(); plt.savefig(f'{FIG}15_merton_series_truncation.png'); plt.close()
 
 print(f'\n=== ALL FIGURES GENERATED ===')
 for f in sorted(os.listdir(FIG)):
