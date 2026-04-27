@@ -1,0 +1,347 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+\usetheme{Madrid}
+\usecolortheme{dolphin}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb, bm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\title[BS vs MJD Option Pricing]{Comparative Study of Stochastic Models for Option Pricing}
+\subtitle{Black--Scholes vs Merton Jump--Diffusion on NIFTY 50 Options}
+\author{(Your Name)}
+\institute{Department of Mathematics, IIT Roorkee \\ Under supervision of Prof.\ Chaman Kumar}
+\date{Mid-Term Evaluation \;|\; Academic Year 2025--26}
+
+\newcommand{\figdir}{figures/}
+
+\begin{document}
+
+% Slide 1
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% Slide 2
+\begin{frame}{Outline}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+    \begin{itemize}
+      \item Motivation: why option pricing needs better models
+      \item Data \& calibration (MLE on NIFTY returns)
+      \item Black--Scholes option pricing
+      \begin{itemize}
+        \item GBM SDE \(\rightarrow\) PDE via hedging
+        \item MLE \(\rightarrow\) closed-form call/put \(\rightarrow\) MC
+      \end{itemize}
+    \end{itemize}
+    \column{0.48\textwidth}
+    \begin{itemize}
+      \item Merton Jump--Diffusion option pricing
+      \begin{itemize}
+        \item SDE with jumps \(\rightarrow\) compensator
+        \item Series pricing via total expectation
+      \end{itemize}
+      \item Option price comparisons (strikes, maturities, smile, crises)
+      \item Model selection (LRT, AIC/BIC)
+      \item Future work: Heston \& Bates
+    \end{itemize}
+  \end{columns}
+\end{frame}
+
+% Slide 3
+\begin{frame}{1.\ Why Option Pricing Needs Better Models}
+  \begin{itemize}
+    \item Black--Scholes (BS) is widely used for pricing and hedging European options.
+    \item Empirically, NIFTY returns exhibit \textbf{fat tails} and \textbf{crash risk}.
+    \item Consequence: BS \textbf{systematically underprices OTM puts} (crash insurance).
+    \item Market signature: \textbf{implied volatility smile/skew} contradicts flat-\(\sigma\) BS.
+  \end{itemize}
+  \vspace{0.5em}
+  \small References: Black \& Scholes (1973); Merton (1976); Rubinstein (1994).
+\end{frame}
+
+% Slide 4
+\begin{frame}{2.\ Calibration Data: NIFTY 50 (2018--2024)}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 01_calibration_data.png}
+  \vspace{0.4em}
+  \footnotesize Underlying returns calibrate the model; \textbf{tails drive option mispricing}, especially for OTM puts.
+\end{frame}
+
+% Slide 5
+\begin{frame}{3.\ Black--Scholes: GBM SDE \& Log-Price}
+  \begin{align*}
+    dS(t) &= \mu S(t)\,dt + \sigma S(t)\,dW(t), \\
+    d(\ln S(t)) &= \left(\mu - \frac{\sigma^2}{2}\right)dt + \sigma\,dW(t), \\
+    r_t = \ln\frac{S_t}{S_{t-1}} &\sim \mathcal{N}\!\left(\left(\mu-\frac{\sigma^2}{2}\right)\Delta t,\ \sigma^2\Delta t\right).
+  \end{align*}
+  \begin{itemize}
+    \item Under GBM, \(S(T)\) is lognormal \(\Rightarrow\) thin tails.
+    \item Tail underestimation \(\Rightarrow\) underpriced crash protection (OTM puts).
+  \end{itemize}
+\end{frame}
+
+% Slide 6
+\begin{frame}{3.\ Black--Scholes PDE: Eliminating \(dW\) via Delta Hedging}
+  \begin{block}{Hedged portfolio}
+    \[
+      \Pi = V(S,t) - \Delta S,\qquad d\Pi = dV - \Delta\, dS.
+    \]
+  \end{block}
+  By It\^o's lemma:
+  \[
+    dV = \left(V_t + \mu S V_S + \frac12\sigma^2 S^2 V_{SS}\right)dt + \sigma S V_S\,dW.
+  \]
+  Choose \(\Delta = V_S\) to cancel the random term \(dW\) \(\Rightarrow\) \(\Pi\) is locally riskless and \(\mu\) disappears.
+  No-arbitrage implies \(d\Pi = r_f \Pi\,dt\), yielding the BS PDE:
+  \[
+    V_t + \frac12\sigma^2 S^2 V_{SS} + r_f S V_S - r_f V = 0.
+  \]
+\end{frame}
+
+% Slide 7
+\begin{frame}{3.\ Black--Scholes: MLE (Calibration)}
+  \begin{itemize}
+    \item With discrete observations at step \(\Delta t\), GBM implies Gaussian increments for log-returns.
+    \item The log-likelihood is explicit; MLE estimates \(\hat{\sigma}\) (annualized) from sample variance.
+    \item For pricing, move to \(\mathbb{Q}\): drift becomes \(r_f\), volatility stays \(\sigma\).
+  \end{itemize}
+  \[
+    dS(t) = r_f S(t)\,dt + \sigma S(t)\,dW^{\mathbb{Q}}(t).
+  \]
+\end{frame}
+
+% Slide 8
+\begin{frame}{3.1\ MLE for Discretely Sampled SDEs (A\"it-Sahalia \& Iacus)}
+  \begin{block}{Exact likelihood needs transition density}
+    \[
+      \ell_n(\theta)=\sum_{i=1}^{n}\ln\left\{p(\Delta, x_i \mid x_{i-1};\theta)\right\}.
+    \]
+  \end{block}
+  \begin{itemize}
+    \item A\"it-Sahalia: for discretely sampled diffusions, \(p(\Delta,\cdot\mid\cdot;\theta)\) is \textbf{usually not available} in closed form.
+    \item He constructs \textbf{closed-form} Hermite expansions \(p^{(J)}\) that converge to \(p\).
+    \item Iacus: under fixed-\(\Delta\) schemes, likelihood is often unavailable \(\Rightarrow\) pseudo/approximated likelihood methods.
+  \end{itemize}
+  \footnotesize References: [AS02] A\"it-Sahalia (2002, Econometrica); [Iac08] Iacus (2008, Springer).
+\end{frame}
+
+% Slide 9
+\begin{frame}{3.\ Black--Scholes: Closed-Form Option Price}
+  European call:
+  \[
+    C = S_0\Phi(d_1) - K e^{-r_fT}\Phi(d_2),
+    \quad
+    d_1=\frac{\ln(S_0/K)+(r_f+\sigma^2/2)T}{\sigma\sqrt{T}},
+    \quad
+    d_2=d_1-\sigma\sqrt{T}.
+  \]
+  \begin{itemize}
+    \item \(\Phi(d_2)\) is the risk-neutral probability of finishing ITM.
+    \item Limitation: \(\sigma\) constant \(\Rightarrow\) cannot produce IV smile/skew.
+  \end{itemize}
+\end{frame}
+
+% Slide 10
+\begin{frame}{4.\ Merton Jump--Diffusion: SDE}
+  \[
+    \frac{dS(t)}{S(t^-)} = \mu\,dt + \sigma\,dW(t) + (e^J-1)\,dN(t),
+    \quad N(t)\sim\text{Poisson}(\lambda t),\quad J\sim \mathcal{N}(\mu_J,\sigma_J^2).
+  \]
+  \begin{itemize}
+    \item Conditional on \(k\) jumps in \([0,T]\), terminal log-price is Gaussian with shifted mean and larger variance.
+    \item Mixture distribution \(\Rightarrow\) fat tails \(\Rightarrow\) higher OTM put prices.
+  \end{itemize}
+\end{frame}
+
+% Slide 11
+\begin{frame}{4.\ Merton JD Option Pricing: Compensator \& Series}
+  Define
+  \[
+    \kappa = \mathbb{E}[e^J-1] = e^{\mu_J+\sigma_J^2/2}-1.
+  \]
+  Risk-neutral drift must offset expected jump growth:
+  \[
+    dS(t) = (r_f-\lambda\kappa)S(t^-)\,dt + \sigma S(t^-)\,dW^{\mathbb{Q}}(t) + S(t^-)(e^J-1)\,dN(t).
+  \]
+  Use Law of Total Expectation (condition on \(N(T)=k\)):
+  \[
+    V_{MJD}=\sum_{k=0}^{\infty}\mathbb{P}(N(T)=k)\cdot \mathrm{BS}(S_0,K,T,r_k,\sigma_k),
+  \]
+  with
+  \[
+    \sigma_k^2=\sigma^2+\frac{k\sigma_J^2}{T},\qquad
+    r_k=r_f-\lambda\kappa+\frac{k\mu_J}{T}+\frac{k\sigma_J^2}{2T}.
+  \]
+\end{frame}
+
+% Slide 12
+\begin{frame}{4.2\ Why truncating the infinite series is safe (Visualization)}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 15_merton_series_truncation.png}
+  \vspace{0.4em}
+  \footnotesize Poisson weights decay rapidly due to \(k!\) in the denominator, so tail mass and price changes beyond \(k\approx 20\) are negligible.
+\end{frame}
+
+% Slide 13
+\begin{frame}{4.1\ MLE in Practice: Exact vs Pseudo/Approximated Likelihood (Iacus)}
+  \begin{itemize}
+    \item Iacus: exact likelihood when transition density is known (e.g., GBM/BS).
+    \item Otherwise use pseudo-likelihood (Euler) or approximated likelihood (e.g., Hermite expansion, simulated likelihood).
+  \end{itemize}
+  Euler pseudo-likelihood:
+  \[
+    X_{t+\Delta}\approx X_t + \mu(X_t;\theta)\Delta + \sigma(X_t;\theta)\sqrt{\Delta}\,Z,\quad Z\sim N(0,1).
+  \]
+  \footnotesize Reference: Iacus (2008), Chapter 3 (Parametric Estimation).
+\end{frame}
+
+% Slide 14
+\begin{frame}{4.\ MJD: Likelihood \& Tail Moments}
+  \begin{itemize}
+    \item Daily return density is a Poisson-weighted Gaussian mixture; truncate at \(K\) terms in practice.
+    \item Numerical stability via log-sum-exp; bounded optimization for \(\sigma>0,\lambda\ge 0,\sigma_J>0\).
+  \end{itemize}
+  \[
+    \mathrm{Var}(r)=\sigma^2\Delta t+\lambda\Delta t(\mu_J^2+\sigma_J^2)
+    \quad\Rightarrow\quad \text{excess kurtosis} > 0 \ \Rightarrow \ \text{fatter tails}.
+  \]
+\end{frame}
+
+% Slide 15
+\begin{frame}{5.\ ATM Option Prices: BS vs MJD}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 02_atm_option_prices.png}
+\end{frame}
+
+% Slide 16
+\begin{frame}{5.\ Option Prices Across Strikes}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 03_option_prices_across_strikes.png}
+\end{frame}
+
+% Slide 17
+\begin{frame}{5.\ Implied Volatility Smile}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 04_iv_smile.png}
+\end{frame}
+
+% Slide 18
+\begin{frame}{5.\ OTM Put Pricing: Where BS Fails Most}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 06_otm_put_pricing.png}
+\end{frame}
+
+% Slide 19
+\begin{frame}{5.\ Option Prices Across Maturities}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 05_option_term_structure.png}
+\end{frame}
+
+% Slide 20
+\begin{frame}{5.\ Option Price Sensitivity to Jump Parameters}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 07_option_sensitivity_heatmap.png}
+\end{frame}
+
+% Slide 21
+\begin{frame}{5.\ Monte Carlo Convergence (Option Prices)}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 08_mc_convergence_options.png}
+\end{frame}
+
+% Slide 22
+\begin{frame}{5.\ Option Pricing at Indian Market Crises}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 11_event_option_pricing.png}
+\end{frame}
+
+% Slide 23
+\begin{frame}{5.\ Variance Reduction for Option Pricing MC}
+  \centering
+  \includegraphics[width=0.9\textwidth]{\figdir 09_variance_reduction_options.png}
+\end{frame}
+
+% Slide 24
+\begin{frame}{6.\ Statistical Model Selection}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 10_model_selection.png}
+  \vspace{0.3em}
+  \footnotesize LRT: \(\Lambda = 2(\ell(\hat{\theta}_{MJD})-\ell(\hat{\theta}_{BS})) \sim \chi^2(3)\) under \(H_0:\lambda=0\). \quad
+  AIC \(=2k-2\ell\), BIC \(=k\ln(n)-2\ell\).
+\end{frame}
+
+% Slide 25
+\begin{frame}{Underlying Paths: How Jumps Affect \(S(T)\)}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 12_gbm_vs_mjd_paths.png}
+\end{frame}
+
+% Slide 26
+\begin{frame}{Return Diagnostics (Motivation for MJD)}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 13_qq_plots.png}
+\end{frame}
+
+% Slide 27
+\begin{frame}{Summary Dashboard}
+  \centering
+  \includegraphics[width=\textwidth]{\figdir 14_summary_dashboard.png}
+\end{frame}
+
+% Slide 28
+\begin{frame}{Model Comparison for Option Pricing}
+  \small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Feature & Black--Scholes & Merton JD \\
+    \midrule
+    Underlying SDE & GBM (continuous) & GBM + Poisson jumps \\
+    Parameters & 2 (\(\mu,\sigma\)) & 5 (\(\mu,\sigma,\lambda,\mu_J,\sigma_J\)) \\
+    Return distribution & Gaussian & Gaussian mixture \\
+    Option pricing & Closed-form & Series / MC \\
+    Implied volatility & Flat & Smile/skew \\
+    OTM put pricing & Systematically low & More realistic \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+% Slide 29
+\begin{frame}{Future Work \& Connection to Supervisor Research}
+  \begin{itemize}
+    \item Extend to stochastic volatility:
+    \begin{itemize}
+      \item Heston (1993): stochastic variance \(\Rightarrow\) full IV surface
+      \item Bates (1996): Heston + jumps \(\Rightarrow\) richer smiles/term structure
+    \end{itemize}
+    \item Numerical challenge: non-Lipschitz \(\sqrt{v}\) terms \(\Rightarrow\) standard Euler can fail.
+    \item Connection: Prof.\ Kumar’s work on tamed Euler/Milstein schemes for challenging SDEs.
+  \end{itemize}
+\end{frame}
+
+% Slide 30
+\begin{frame}{References}
+  \footnotesize
+  \begin{thebibliography}{99}
+    \bibitem{BS73} Black, F. \& Scholes, M. (1973). \emph{The Pricing of Options and Corporate Liabilities}. JPE 81(3).
+    \bibitem{Me76} Merton, R. (1976). \emph{Option pricing when underlying stock returns are discontinuous}. JFE 3(1--2).
+    \bibitem{Ru94} Rubinstein, M. (1994). \emph{Implied binomial trees}. J. Finance 49(3).
+    \bibitem{Gl03} Glasserman, P. (2003). \emph{Monte Carlo Methods in Financial Engineering}. Springer.
+    \bibitem{AS02} A\"it-Sahalia, Y. (2002). \emph{Maximum likelihood estimation of discretely sampled diffusions: a closed-form approximation approach}. Econometrica 70(1).
+    \bibitem{Iac08} Iacus, S. M. (2008). \emph{Simulation and Inference for Stochastic Differential Equations}. Springer.
+    \bibitem{CT04} Cont, R. \& Tankov, P. (2004). \emph{Financial Modelling with Jump Processes}. Chapman \& Hall/CRC.
+  \end{thebibliography}
+\end{frame}
+
+% Slide 31
+\begin{frame}
+  \centering
+  \Huge Thank You\\[0.6em]
+  \Large Questions?
+\end{frame}
+
+\end{document}
+
